@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { UtensilsCrossed } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-const destino = { dono: "/admin", caixa: "/balcao" } as const;
+const destino = { dono: "/painel", caixa: "/painel" } as const;
 
 export default function Login() {
   const router = useRouter();

@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { Bike, ChefHat, CircleCheck, CircleX, MessageCircle, PackageCheck, Receipt, Store } from "lucide-react";
 import { varsCor } from "@/lib/cor";
 import { createClient } from "@/lib/supabase/client";
-import { brl, type PedidoPublico, STATUS } from "@/lib/tipos";
+import { brl, FORMAS, type PedidoPublico, STATUS } from "@/lib/tipos";
 
 const supabase = createClient();
 const ETAPAS = [
@@ -29,6 +29,8 @@ function mensagemWhatsApp(p: PedidoPublico, empresa: string) {
     ...(p.tipo === "entrega" ? [`Entrega (${p.bairro_nome}): ${brl(p.taxa)}`] : []),
     `*Total: ${brl(p.total)}*`,
     p.tipo === "entrega" ? "Para entrega" : "Vou retirar no local",
+    ...(p.forma_pagamento ? [`Pagamento: ${FORMAS[p.forma_pagamento]}`] : []),
+    ...(p.troco_para != null ? [`Troco para ${brl(p.troco_para)}`] : []),
   ].join("\n");
 }
 
@@ -126,6 +128,12 @@ export function Pedido() {
           <div className="flex justify-between"><dt>Subtotal</dt><dd>{brl(p.subtotal)}</dd></div>
           {p.tipo === "entrega" && <div className="flex justify-between"><dt>Entrega</dt><dd>{brl(p.taxa)}</dd></div>}
           <div className="flex justify-between text-lg font-bold text-neutral-900"><dt>Total</dt><dd>{brl(p.total)}</dd></div>
+          {p.forma_pagamento && (
+            <div className="flex justify-between pt-1">
+              <dt>Pagamento</dt>
+              <dd>{FORMAS[p.forma_pagamento]}{p.troco_para != null && ` · troco para ${brl(p.troco_para)}`}</dd>
+            </div>
+          )}
         </dl>
       </section>
 

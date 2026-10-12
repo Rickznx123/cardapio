@@ -6,7 +6,7 @@ const code = "block overflow-x-auto whitespace-pre rounded bg-gray-100 p-3 font-
 export default function Configurar() {
   return (
     <main className="mx-auto w-full max-w-2xl space-y-5 p-4">
-      <Link href="/balcao" className="text-sm underline">← Voltar ao balcão</Link>
+      <Link href="/painel" className="text-sm underline">← Voltar ao painel</Link>
       <h1 className="text-2xl font-bold">Configurar impressão automática (Windows)</h1>
       <p>
         O balcão imprime cada pedido novo sozinho quando o Chrome é aberto com a opção

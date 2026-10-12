@@ -15,7 +15,11 @@ Interface 100% em português (pt-BR), valores em R$.
 
 ## Regras importantes
 - Todo dado é isolado por `empresa_id` via RLS. Nunca usar service role no client.
-- **Pedidos só são criados via RPC** (`criar_pedido_publico`, `criar_pedido_mesa`). Preço nunca vem do client.
+- **Pedidos só são criados via RPC** (`criar_pedido_publico` → origem `web`, `criar_pedido_mesa` → `garcom`,
+  `criar_pedido_balcao` → `balcao`). Preço nunca vem do client. Web e balcão compartilham a validação de
+  bairro/taxa/mínimo/troco em `_criar_pedido_externo` (interna, sem grant).
+- Pagamento: `forma_pagamento` (obrigatória no web), `troco_para` (só dinheiro, ≥ total), `pago`/`pago_em`.
+  Fechar comanda só via RPC `fechar_comanda(p_comanda_id, p_forma_pagamento)` (marca os pedidos da mesa como pagos).
 - Mobile-first em tudo (cardápio e app do garçom são usados no celular).
 - Fotos: comprimir no client antes do upload (máx ~1200px, webp). Caminho: `{empresa_id}/arquivo.webp`.
 - Carrinho (público e garçom) é uma lista de **linhas** com id próprio (`lib/linhas.ts`): o mesmo item pode ter
@@ -27,14 +31,15 @@ Interface 100% em português (pt-BR), valores em R$.
 ## Áreas / rotas
 | Rota | Quem usa | O quê |
 |---|---|---|
-| `/[slug]` | cliente | cardápio público, carrinho, entrega (taxa por bairro) ou retirada |
+| `/` | visitante | landing do produto + "Entrar" |
+| `/[slug]` | cliente | cardápio: capa, informações, busca, último pedido (repetir), carrinho, checkout com pagamento/troco |
 | `/[slug]/pedido/[id]` | cliente | confirmação via RPC `ver_pedido_publico` (status atualiza a cada 20s) + botão WhatsApp |
-| `/login` | dono/caixa | login por e-mail/senha |
-| `/admin` | dono | empresa, categorias, itens, bairros/taxas, mesas, equipe (garçom e caixa) |
+| `/login` | dono/caixa | login por e-mail/senha → `/painel` |
+| `/painel` | dono/caixa | painel unificado (substitui `/admin` e `/balcao`). Seções: Pedidos (abas Balcão/Delivery/Mesas, filtros, novo pedido, pagar, finalizar, comandas), Cardápio, Mesas, Entrega, Equipe, Configurações. Caixa vê só Pedidos. Sidebar: loja aberta/fechada, ver cardápio, QR Code |
+| `/painel/impressao` | dono/caixa | instruções do atalho do Chrome com `--kiosk-printing` no Windows |
+| `/admin`, `/balcao`, `/balcao/configurar` | — | redirects (next.config) para `/painel` e `/painel/impressao` |
 | `/[slug]/garcom` | garçom | PWA: login nome+PIN; grade de mesas → comanda → adicionar itens (obs. por item) → enviar |
 | `/[slug]/garcom/manifest` | — | manifest do PWA por empresa (`start_url` = `/[slug]/garcom`) |
-| `/balcao` | caixa/dono | colunas novo → preparo → pronto → entregue, cancelar, impressão automática/reimprimir; aba Mesas: imprimir conta, fechar comanda |
-| `/balcao/configurar` | caixa/dono | instruções do atalho do Chrome com `--kiosk-printing` no Windows |
 | `POST /api/garcom` | dono | cadastra garçom (nome + PIN) ou caixa (nome + e-mail + senha) |
 | `POST /api/garcom/login` | garçom | `{membro_id, pin}` → login no server, grava cookies de sessão |
 
@@ -48,12 +53,13 @@ O garçom escolhe o nome e digita o PIN; `/api/garcom/login` busca o e-mail com 
 
 ## Impressão
 - Cupom em HTML com `@page { size: 80mm auto; margin: 0 }`, fonte monoespaçada (`lib/cupom.ts`: `cupomPedido`, `preConta`).
-- `/balcao` escuta `pedidos` no Realtime filtrado por `empresa_id`. No evento, busca pedido + itens pelo id
+- `/painel` (seção Pedidos, sempre montada mesmo em outras seções) escuta `pedidos` no Realtime filtrado por `empresa_id`. No evento, busca pedido + itens pelo id
   (o payload do INSERT vem com total 0 e sem itens). Se o canal cair, reconecta em 3s e refaz o fetch completo.
 - Antes de imprimir, "reivindica": `update pedidos set impresso_em = now() where id = X and impresso_em is null`;
   só imprime se voltou linha (evita duplicar com duas abas). Toggle "impressão automática" no localStorage.
 - Impressão em iframe oculto (`lib/impressao.ts`, sandbox sem scripts), uma por vez.
-- Produção: Chrome com `--kiosk-printing` (ver `/balcao/configurar`). Em dev, testar com "Salvar como PDF".
+- O cupom traz forma de pagamento, troco ("levar de troco") e PAGO/NÃO PAGO.
+- Produção: Chrome com `--kiosk-printing` (ver `/painel/impressao`). Em dev, testar com "Salvar como PDF".
 
 ## Plano de build
 - **Dia 1:** setup, auth, layout, admin completo (CRUDs + upload de fotos)
@@ -64,3 +70,6 @@ O garçom escolhe o nome e digita o PIN; `/api/garcom/login` busca o e-mail com 
 - `002_garcom.sql`: RPC `listar_garcons`
 - `003_dia3.sql`: constraint de slug, RPCs `ver_pedido_publico` e `cancelar_pedido`
 - `004_seguranca.sql`: policy de update em `pedidos` bloqueia `cancelado`; `ver_pedido_publico(p_slug, p_id)`
+- `005_painel.sql`: enums `forma_pagamento`/`origem_pedido`; colunas de pagamento/origem em `pedidos`;
+  `capa_url`/`descricao`/`horario_texto` em `empresas`; slug `painel` reservado; `criar_pedido_publico` com
+  pagamento; `criar_pedido_balcao`; `fechar_comanda`; `ver_pedido_publico` devolve pagamento

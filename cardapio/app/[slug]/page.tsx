@@ -18,7 +18,7 @@ async function Conteudo({ params }: { params: Promise<{ slug: string }> }) {
 
   const { data: empresa } = await supabase
     .from("empresas")
-    .select("id, nome, slug, logo_url, cor_primaria, whatsapp, endereco, aceita_entrega, aceita_retirada, aberto")
+    .select("id, nome, slug, logo_url, cor_primaria, whatsapp, endereco, capa_url, descricao, horario_texto, aceita_entrega, aceita_retirada, aberto")
     .eq("slug", slug)
     .eq("ativo", true)
     .maybeSingle<EmpresaPublica>();

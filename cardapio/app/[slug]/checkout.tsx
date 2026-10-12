@@ -4,22 +4,17 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bike, ChevronLeft, Store } from "lucide-react";
 import { LinhaEditor } from "@/components/linha";
+import { CampoTroco, EscolhaPagamento, trocoInvalido, trocoNumero } from "@/components/pagamento";
+import { gravar } from "@/lib/armazenado";
+import { mascaraTelefone } from "@/lib/telefone";
 import { type LinhaCarrinho, paraRpc } from "@/lib/linhas";
 import { createClient } from "@/lib/supabase/client";
-import { type BairroPublico, brl, type EmpresaPublica, type ItemPublico } from "@/lib/tipos";
+import { type BairroPublico, brl, type EmpresaPublica, type FormaPagamento, type ItemPublico } from "@/lib/tipos";
+import type { UltimoPedido } from "./cardapio";
 
 const input =
   "h-14 w-full rounded-xl border border-neutral-300 bg-white px-4 text-base outline-none focus:border-(--cor) focus:ring-2 focus:ring-(--cor)/30";
 const ETAPAS = ["Sacola", "Entrega", "Revisar"] as const;
-
-// (66) 99999-9999 enquanto digita.
-function mascaraTelefone(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 11);
-  if (d.length <= 2) return d && `(${d}`;
-  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-}
 
 type Props = {
   empresa: EmpresaPublica; bairros: BairroPublico[]; linhas: LinhaCarrinho[]; porId: Map<string, ItemPublico>;
@@ -35,12 +30,16 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
   const [telefone, setTelefone] = useState("");
   const [endereco, setEndereco] = useState("");
   const [observacao, setObservacao] = useState("");
+  const [forma, setForma] = useState<FormaPagamento | null>(null);
+  const [troco, setTroco] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
 
   const bairro = tipo === "entrega" ? bairros.find((b) => b.id === bairroId) : undefined;
   const taxa = bairro?.taxa ?? 0;
   const faltaMinimo = bairro && subtotal < bairro.pedido_minimo ? bairro.pedido_minimo - subtotal : 0;
+  const total = subtotal + taxa;
+  const pagamentoPendente = etapa === 2 && (!forma || (forma === "dinheiro" && trocoInvalido(troco, total)));
 
   function voltar() {
     setErro("");
@@ -60,11 +59,14 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
       p_endereco: tipo === "entrega" ? endereco.trim() : null,
       p_bairro_id: bairro?.id ?? null,
       p_observacao: observacao.trim() || null,
+      p_forma_pagamento: forma,
+      p_troco_para: forma === "dinheiro" ? trocoNumero(troco) : null,
     });
     if (error) {
       setEnviando(false);
       return setErro(error.message);
     }
+    gravar(`ultimo:${empresa.slug}`, { em: new Date().toISOString(), linhas } satisfies UltimoPedido);
     setLinhas([]);
     router.push(`/${empresa.slug}/pedido/${data.id}`);
   }
@@ -176,6 +178,12 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
                 <p>{nome} · {telefone}</p>
                 {tipo === "entrega" && <p className="text-neutral-600">{endereco} — {bairro?.nome}</p>}
               </section>
+              <section className="space-y-3">
+                <h2 className="font-semibold">Como vai pagar?</h2>
+                <EscolhaPagamento valor={forma} mudar={(f) => { setForma(f); if (f !== "dinheiro") setTroco(null); }} />
+                {forma === "dinheiro" && <CampoTroco total={total} valor={troco} mudar={setTroco} />}
+                <p className="text-xs text-neutral-500">O pagamento é feito na entrega ou na retirada.</p>
+              </section>
               <label className="block">
                 <span className="mb-1 block text-sm font-medium">Observação do pedido (opcional)</span>
                 <textarea value={observacao} onChange={(e) => setObservacao(e.target.value)} rows={2} maxLength={300}
@@ -200,7 +208,7 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
             </p>
           )}
           {erro && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{erro}</p>}
-          <button disabled={enviando || (etapa > 0 && faltaMinimo > 0)}
+          <button disabled={enviando || (etapa > 0 && faltaMinimo > 0) || pagamentoPendente}
             className="flex h-14 w-full items-center justify-between rounded-2xl bg-(--cor) px-5 text-lg font-semibold text-(--cor-texto) disabled:opacity-50">
             <span>{etapa === 0 ? "Continuar" : etapa === 1 ? "Revisar pedido" : enviando ? "Enviando…" : "Confirmar pedido"}</span>
             <span>{brl(subtotal + (etapa > 0 ? taxa : 0))}</span>

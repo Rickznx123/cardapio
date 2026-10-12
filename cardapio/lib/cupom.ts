@@ -1,10 +1,12 @@
-import { brl, type StatusPedido } from "./tipos";
+import { brl, FORMAS, type FormaPagamento, type StatusPedido } from "./tipos";
 
 export type PedidoBalcao = {
   id: string; numero: number; tipo: "mesa" | "entrega" | "retirada"; status: StatusPedido;
   cliente_nome: string | null; cliente_telefone: string | null; endereco: string | null; bairro_nome: string | null;
   taxa_entrega: number; subtotal: number; total: number; observacao: string | null;
   impresso_em: string | null; created_at: string; comanda_id: string | null;
+  forma_pagamento: FormaPagamento | null; troco_para: number | null; pago: boolean; pago_em: string | null;
+  origem: "web" | "garcom" | "balcao";
   pedido_itens: { nome: string; preco: number; quantidade: number; observacao: string | null }[];
   comandas: { mesas: { numero: number } | null } | null;
   membros: { nome: string } | null;
@@ -12,8 +14,10 @@ export type PedidoBalcao = {
 
 export const SELECT_PEDIDO =
   "id, numero, tipo, status, cliente_nome, cliente_telefone, endereco, bairro_nome, taxa_entrega, subtotal, total, " +
-  "observacao, impresso_em, created_at, comanda_id, pedido_itens(nome, preco, quantidade, observacao), " +
+  "observacao, impresso_em, created_at, comanda_id, forma_pagamento, troco_para, pago, pago_em, origem, pedido_itens(nome, preco, quantidade, observacao), " +
   "comandas(mesas(numero)), membros(nome)";
+
+export const ORIGEM: Record<PedidoBalcao["origem"], string> = { web: "WEB", garcom: "GARÇOM", balcao: "BALCÃO" };
 
 // Todo texto vem de cliente/garçom: escapar sempre (o cupom é HTML).
 const esc = (s: unknown) =>
@@ -47,16 +51,27 @@ export function cupomPedido(empresa: string, p: PedidoBalcao) {
     p.tipo === "mesa"
       ? `<p class="c t">MESA ${p.comandas?.mesas?.numero ?? "?"}</p>${p.membros ? `<p>Garçom: ${esc(p.membros.nome)}</p>` : ""}`
       : `<p class="c t">${p.tipo === "entrega" ? "ENTREGA" : "RETIRADA"}</p>` +
-        `<p>Cliente: ${esc(p.cliente_nome)}</p><p>Tel: ${esc(p.cliente_telefone)}</p>` +
+        (p.cliente_nome ? `<p>Cliente: ${esc(p.cliente_nome)}</p>` : "") +
+        (p.cliente_telefone ? `<p>Tel: ${esc(p.cliente_telefone)}</p>` : "") +
         (p.tipo === "entrega" ? `<p>End.: ${esc(p.endereco)}</p><p>Bairro: ${esc(p.bairro_nome)}</p>` : "");
   return documento(
     `<h1>${esc(empresa)}</h1><p class="c">${hora(p.created_at)}</p><hr>` +
-    `<p class="c g">PEDIDO #${p.numero}</p>${cabecalho}<hr>${itens(p)}` +
+    `<p class="c g">PEDIDO #${p.numero}</p><p class="c">${ORIGEM[p.origem] ?? ""}</p>${cabecalho}<hr>${itens(p)}` +
     (p.observacao ? `<hr><div class="obs">OBS: ${esc(p.observacao)}</div>` : "") +
     `<hr>${linha("Subtotal", brl(p.subtotal))}` +
     (p.tipo === "entrega" ? linha("Taxa entrega", brl(p.taxa_entrega)) : "") +
-    linha("TOTAL", brl(p.total), "t"),
+    linha("TOTAL", brl(p.total), "t") +
+    pagamento(p),
   );
+}
+
+// Forma de pagamento, troco e situação: o entregador/caixa precisa ver no papel.
+function pagamento(p: PedidoBalcao) {
+  const forma = p.forma_pagamento ? FORMAS[p.forma_pagamento] : "A definir";
+  const troco = p.troco_para != null
+    ? linha("Troco para", brl(p.troco_para)) + linha("Levar de troco", brl(p.troco_para - p.total))
+    : "";
+  return `<hr>${linha("Pagamento", esc(forma))}${troco}<p class="c g">${p.pago ? "PAGO" : "NÃO PAGO"}</p>`;
 }
 
 // Pré-conta da mesa: todos os pedidos não cancelados da comanda.
