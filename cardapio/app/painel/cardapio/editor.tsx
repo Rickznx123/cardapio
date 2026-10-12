@@ -105,13 +105,9 @@ export function EditorCardapio({ empresa, mudou }: { empresa: Empresa; mudou: (e
   function reordenarItens(categoriaId: string, idsEmOrdem: string[]) {
     const antes = itens;
     const novaOrdem = new Map(idsEmOrdem.map((id, n) => [id, n]));
-    const mudados = itens.filter((i) => i.categoria_id === categoriaId && novaOrdem.has(i.id) && i.ordem !== novaOrdem.get(i.id));
     setItens((l) => l.map((i) => (novaOrdem.has(i.id) ? { ...i, ordem: novaOrdem.get(i.id)! } : i)));
-    persistir(
-      Promise.all(mudados.map((i) => supabase.from("itens").update({ ordem: novaOrdem.get(i.id) }).eq("id", i.id)))
-        .then((rs) => ({ error: rs.find((r) => r.error)?.error ?? null })),
-      () => setItens(antes), "Ordem salva",
-    );
+    // Uma RPC, uma transação: ou grava a ordem inteira, ou nada.
+    persistir(supabase.rpc("reordenar", { p_tabela: "itens", p_ids: idsEmOrdem }), () => setItens(antes), "Ordem salva");
   }
 
   function novoProduto(categoriaId: string) {
@@ -194,13 +190,8 @@ export function EditorCardapio({ empresa, mudou }: { empresa: Empresa; mudou: (e
     const antes = cats;
     const nova = arrayMove(cats, cats.findIndex((c) => c.id === active.id), cats.findIndex((c) => c.id === over.id))
       .map((c, n) => ({ ...c, ordem: n }));
-    const mudadas = nova.filter((c) => antes.find((x) => x.id === c.id)!.ordem !== c.ordem);
     setCats(nova);
-    persistir(
-      Promise.all(mudadas.map((c) => supabase.from("categorias").update({ ordem: c.ordem }).eq("id", c.id)))
-        .then((rs) => ({ error: rs.find((r) => r.error)?.error ?? null })),
-      () => setCats(antes), "Ordem salva",
-    );
+    persistir(supabase.rpc("reordenar", { p_tabela: "categorias", p_ids: nova.map((c) => c.id) }), () => setCats(antes), "Ordem salva");
   }
 
   const ops: Ops = {

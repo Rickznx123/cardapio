@@ -5,17 +5,20 @@ import { Clock, Lock, Receipt } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { EscolhaPagamento } from "@/components/pagamento";
 import { toast } from "@/components/toast";
-import { preConta, type PedidoBalcao, SELECT_PEDIDO } from "@/lib/cupom";
+import { type ConfigImpressao, preConta, type PedidoBalcao, SELECT_PEDIDO } from "@/lib/cupom";
 import { imprimir } from "@/lib/impressao";
 import { createClient } from "@/lib/supabase/client";
 import { brl, type FormaPagamento } from "@/lib/tipos";
+import { AbrirCaixa, useCaixaAberto } from "./caixa-aberto";
 
 const supabase = createClient();
 
 type Comanda = { id: string; total: number; aberta_em: string; mesas: { numero: number } };
 
 // Comandas abertas: imprimir conta (pré-conta) e fechar com forma de pagamento. `versao` muda quando chega pedido de mesa.
-export function Comandas({ empresaId, empresaNome, versao }: { empresaId: string; empresaNome: string; versao: number }) {
+export function Comandas({ empresaId, empresaNome, versao, formas, config }: {
+  empresaId: string; empresaNome: string; versao: number; formas: FormaPagamento[]; config: ConfigImpressao | null;
+}) {
   const [comandas, setComandas] = useState<Comanda[] | null>(null);
   const [local, setLocal] = useState(0);
   const [fechando, setFechando] = useState<Comanda | null>(null);
@@ -30,7 +33,7 @@ export function Comandas({ empresaId, empresaNome, versao }: { empresaId: string
     const { data, error } = await supabase.from("pedidos").select(SELECT_PEDIDO)
       .eq("comanda_id", c.id).order("created_at");
     if (error) return toast.erro(error.message);
-    imprimir(preConta(empresaNome, c.mesas.numero, data as unknown as PedidoBalcao[]));
+    imprimir(preConta(empresaNome, c.mesas.numero, data as unknown as PedidoBalcao[], config));
     toast.ok(`Imprimindo conta da mesa ${c.mesas.numero}`);
   }
 
@@ -66,14 +69,17 @@ export function Comandas({ empresaId, empresaNome, versao }: { empresaId: string
         ))}
       </ul>
       {fechando && (
-        <FecharModal comanda={fechando} fechar={() => setFechando(null)}
+        <FecharModal comanda={fechando} empresaId={empresaId} formas={formas} fechar={() => setFechando(null)}
           fechada={() => { setFechando(null); setLocal((v) => v + 1); }} />
       )}
     </section>
   );
 }
 
-function FecharModal({ comanda, fechar, fechada }: { comanda: Comanda; fechar: () => void; fechada: () => void }) {
+function FecharModal({ comanda, empresaId, formas, fechar, fechada }: {
+  comanda: Comanda; empresaId: string; formas: FormaPagamento[]; fechar: () => void; fechada: () => void;
+}) {
+  const [caixa, recarregarCaixa] = useCaixaAberto(empresaId);
   const [forma, setForma] = useState<FormaPagamento | null>(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -89,14 +95,15 @@ function FecharModal({ comanda, fechar, fechada }: { comanda: Comanda; fechar: (
   return (
     <Modal titulo={`Fechar mesa ${comanda.mesas.numero}`} fechar={fechar}
       rodape={
-        <button disabled={!forma || salvando} onClick={confirmar}
+        <button disabled={!forma || !caixa || salvando} onClick={confirmar}
           className="h-12 w-full rounded-lg bg-emerald-600 font-semibold text-white disabled:opacity-50">
           {salvando ? "Fechando…" : `Receber ${brl(comanda.total)} e fechar`}
         </button>
       }>
       <div className="space-y-4 p-5">
         <p className="text-center text-3xl font-bold tabular-nums">{brl(comanda.total)}</p>
-        <EscolhaPagamento valor={forma} mudar={setForma} />
+        {caixa === null && <AbrirCaixa empresaId={empresaId} aberto={recarregarCaixa} compacto />}
+        <EscolhaPagamento formas={formas} valor={forma} mudar={setForma} />
         <p className="text-sm text-neutral-500">Os pedidos da mesa ficam marcados como pagos com essa forma.</p>
       </div>
     </Modal>

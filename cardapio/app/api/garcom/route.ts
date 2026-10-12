@@ -55,3 +55,29 @@ export async function POST(request: Request) {
   }
   return NextResponse.json({ ok: true });
 }
+
+// Dono troca o PIN do garçom (6 dígitos) ou a senha do caixa (mín. 6) de um membro da própria empresa.
+export async function PATCH(request: Request) {
+  const { membro_id, segredo } = await request.json().catch(() => ({}));
+  if (typeof membro_id !== "string" || typeof segredo !== "string") return erro("Dados inválidos", 400);
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return erro("Não autenticado", 401);
+
+  const admin = createAdminClient();
+  const { data: alvo } = await admin.from("membros").select("user_id, empresa_id, papel").eq("id", membro_id).maybeSingle();
+  if (!alvo || alvo.papel === "dono") return erro("Membro não encontrado", 404);
+
+  // Quem chama precisa ser dono ativo da mesma empresa (checado com o client do usuário: vale a RLS).
+  const { data: dono } = await supabase.from("membros").select("id")
+    .eq("empresa_id", alvo.empresa_id).eq("user_id", user.id).eq("papel", "dono").eq("ativo", true).maybeSingle();
+  if (!dono) return erro("Sem permissão", 403);
+
+  if (alvo.papel === "garcom" && !/^\d{6}$/.test(segredo)) return erro("PIN deve ter 6 dígitos", 400);
+  if (alvo.papel === "caixa" && segredo.length < 6) return erro("Senha precisa ter pelo menos 6 caracteres", 400);
+
+  const { error } = await admin.auth.admin.updateUserById(alvo.user_id, { password: segredo });
+  if (error) return erro(error.message, 400);
+  return NextResponse.json({ ok: true });
+}

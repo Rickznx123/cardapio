@@ -9,17 +9,19 @@ import { Modal } from "@/components/modal";
 import { EscolhaPagamento } from "@/components/pagamento";
 import { toast } from "@/components/toast";
 import { useArmazenado } from "@/lib/armazenado";
-import { cupomPedido, ORIGEM, type PedidoBalcao, SELECT_PEDIDO } from "@/lib/cupom";
+import { type ConfigImpressao, cuponsPedido, ORIGEM, type PedidoBalcao, SELECT_PEDIDO } from "@/lib/cupom";
 import { imprimir } from "@/lib/impressao";
 import { createClient } from "@/lib/supabase/client";
 import { linkWhatsApp } from "@/lib/telefone";
 import { brl, FORMAS, type FormaPagamento, type StatusPedido } from "@/lib/tipos";
+import { AbrirCaixa, useCaixaAberto } from "./caixa-aberto";
 import { Comandas } from "./comandas";
+import { DetalhePedido } from "./detalhe-pedido";
 import { NovoPedido } from "./novo-pedido";
 
 const supabase = createClient();
 
-export type Equipe = { empresa_id: string; nome: string };
+export type Equipe = { empresa_id: string; nome: string; formas: FormaPagamento[]; config: ConfigImpressao | null };
 type Aba = "retirada" | "entrega" | "mesa";
 type Filtro = "tudo" | "novo" | "preparo" | "pronto";
 
@@ -84,7 +86,7 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
   const [somLiberado, setSomLiberado] = useState(false);
   const [novo, setNovo] = useState(false);
   const [detalhe, setDetalhe] = useState<PedidoBalcao | null>(null);
-  const [pagando, setPagando] = useState<PedidoBalcao | null>(null);
+  const [pagando, setPagando] = useState<{ p: PedidoBalcao; finalizar: boolean } | null>(null);
   const [auto, setAuto] = useArmazenado("balcao:impressao-automatica", true);
   const agora = useAgora();
 
@@ -94,7 +96,7 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
     const { data } = await supabase.from("pedidos").update({ impresso_em: quando })
       .eq("id", p.id).is("impresso_em", null).select("id");
     if (!data?.length) return;
-    imprimir(cupomPedido(equipe.nome, p));
+    cuponsPedido(equipe.nome, p, equipe.config).forEach((html) => imprimir(html));
     guardar({ ...p, impresso_em: quando });
   }
 
@@ -170,7 +172,8 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
   }, [empresaId]);
 
   async function mudarStatus(p: PedidoBalcao, status: StatusPedido) {
-    if (status === "entregue" && !p.pago && !confirm(`O pedido #${p.numero} não está pago. Finalizar mesmo assim?`)) return;
+    // Não pago (mesa paga no fechamento da comanda): oferece receber junto ou finalizar sem receber.
+    if (status === "entregue" && !p.pago && p.tipo !== "mesa") return setPagando({ p, finalizar: true });
     const { error } = await supabase.from("pedidos").update({ status }).eq("id", p.id);
     if (error) return toast.erro(error.message);
     guardar({ ...p, status });
@@ -270,7 +273,7 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
       </div>
 
       <div className="flex-1 space-y-4 p-4 lg:px-6">
-        {aba === "mesa" && <Comandas empresaId={equipe.empresa_id} empresaNome={equipe.nome} versao={versaoMesas} />}
+        {aba === "mesa" && <Comandas empresaId={equipe.empresa_id} empresaNome={equipe.nome} versao={versaoMesas} formas={equipe.formas} config={equipe.config} />}
 
         {!carregado ? (
           <div className="space-y-2">{[0, 1, 2].map((n) => <div key={n} className="h-24 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />)}</div>
@@ -282,8 +285,8 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
           <ul className="space-y-2">
             {lista.map((p) => (
               <LinhaPedido key={p.id} p={p} agora={agora} mudarStatus={mudarStatus} cancelar={cancelar}
-                detalhes={() => setDetalhe(p)} pagar={() => setPagando(p)}
-                reimprimir={() => { imprimir(cupomPedido(equipe.nome, p)); toast.ok(`Imprimindo #${p.numero}`); }} />
+                detalhes={() => setDetalhe(p)} pagar={() => setPagando({ p, finalizar: false })}
+                reimprimir={() => { cuponsPedido(equipe.nome, p, equipe.config).forEach((html) => imprimir(html)); toast.ok(`Imprimindo #${p.numero}`); }} />
             ))}
           </ul>
         )}
@@ -298,11 +301,11 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
         </footer>
       )}
 
-      {novo && <NovoPedido empresaId={equipe.empresa_id} fechar={() => setNovo(false)} />}
+      {novo && <NovoPedido empresaId={equipe.empresa_id} formas={equipe.formas} fechar={() => setNovo(false)} />}
       {detalhe && <DetalhesModal p={pedidos.find((x) => x.id === detalhe.id) ?? detalhe} fechar={() => setDetalhe(null)} />}
       {pagando && (
-        <PagarModal p={pagando} fechar={() => setPagando(null)}
-          salvo={(campos) => { guardar({ ...pagando, ...campos }); setPagando(null); }} />
+        <PagarModal p={pagando.p} finalizar={pagando.finalizar} formas={equipe.formas} empresaId={equipe.empresa_id}
+          fechar={() => setPagando(null)} salvo={(campos) => { guardar({ ...pagando.p, ...campos }); setPagando(null); }} />
       )}
     </section>
   );
@@ -412,66 +415,53 @@ function LinhaPedido({ p, agora, mudarStatus, cancelar, detalhes, pagar, reimpri
 }
 
 function DetalhesModal({ p, fechar }: { p: PedidoBalcao; fechar: () => void }) {
-  const linha = "flex justify-between gap-3 py-1";
-  return (
-    <Modal titulo={`Pedido #${p.numero}`} fechar={fechar}>
-      <div className="space-y-4 p-5">
-        <ul className="space-y-2">
-          {p.pedido_itens.map((i, n) => (
-            <li key={n}>
-              <div className={linha}><span><b>{i.quantidade}x</b> {i.nome}</span><span>{brl(i.preco * i.quantidade)}</span></div>
-              {i.observacao && <p className="rounded bg-yellow-100 px-2 py-0.5 text-sm font-semibold text-yellow-900">» {i.observacao}</p>}
-            </li>
-          ))}
-        </ul>
-        {p.observacao && <p className="rounded-lg bg-yellow-100 p-3 font-semibold text-yellow-900">Obs: {p.observacao}</p>}
-        <dl className="divide-y divide-neutral-200 text-sm dark:divide-neutral-800">
-          <div className={linha}><dt>Subtotal</dt><dd>{brl(p.subtotal)}</dd></div>
-          {p.tipo === "entrega" && <div className={linha}><dt>Taxa de entrega</dt><dd>{brl(p.taxa_entrega)}</dd></div>}
-          <div className={`${linha} text-base font-bold`}><dt>Total</dt><dd>{brl(p.total)}</dd></div>
-          <div className={linha}><dt>Pagamento</dt><dd>{p.forma_pagamento ? FORMAS[p.forma_pagamento] : "A definir"} · {p.pago ? "Pago" : "Não pago"}</dd></div>
-          {p.troco_para != null && <div className={linha}><dt>Troco</dt><dd>para {brl(p.troco_para)} (levar {brl(p.troco_para - p.total)})</dd></div>}
-          {p.cliente_nome && <div className={linha}><dt>Cliente</dt><dd>{p.cliente_nome}</dd></div>}
-          {p.cliente_telefone && <div className={linha}><dt>Telefone</dt><dd>{p.cliente_telefone}</dd></div>}
-          {p.tipo === "entrega" && <div className={linha}><dt>Endereço</dt><dd className="text-right">{p.endereco} — {p.bairro_nome}</dd></div>}
-          {p.membros && <div className={linha}><dt>Garçom</dt><dd>{p.membros.nome}</dd></div>}
-          <div className={linha}><dt>Origem</dt><dd>{ORIGEM[p.origem]}</dd></div>
-          <div className={linha}><dt>Impresso</dt><dd>{p.impresso_em ? new Date(p.impresso_em).toLocaleTimeString("pt-BR", { timeStyle: "short" }) : "não"}</dd></div>
-        </dl>
-      </div>
-    </Modal>
-  );
+  return <Modal titulo={`Pedido #${p.numero}`} fechar={fechar}><DetalhePedido p={p} /></Modal>;
 }
 
-function PagarModal({ p, fechar, salvo }: {
-  p: PedidoBalcao; fechar: () => void; salvo: (campos: Partial<PedidoBalcao>) => void;
+function PagarModal({ p, finalizar, formas, empresaId, fechar, salvo }: {
+  p: PedidoBalcao; finalizar: boolean; formas: FormaPagamento[]; empresaId: string;
+  fechar: () => void; salvo: (campos: Partial<PedidoBalcao>) => void;
 }) {
-  const [forma, setForma] = useState<FormaPagamento | null>(p.forma_pagamento);
+  const [caixa, recarregarCaixa] = useCaixaAberto(empresaId);
+  const [forma, setForma] = useState<FormaPagamento | null>(p.forma_pagamento && formas.includes(p.forma_pagamento) ? p.forma_pagamento : null);
   const [recebido, setRecebido] = useState("");
   const [salvando, setSalvando] = useState(false);
   const valorRecebido = Number(recebido.replace(",", ".")) || 0;
 
-  async function salvar(campos: Partial<PedidoBalcao>) {
+  // pago_em e caixa_id são preenchidos pelo banco (trigger pedidos_caixa).
+  async function salvar(campos: Partial<PedidoBalcao>, mensagem: string) {
     setSalvando(true);
     const { error } = await supabase.from("pedidos").update(campos).eq("id", p.id);
     setSalvando(false);
     if (error) return toast.erro(error.message);
-    toast.ok(campos.pago ? `Pedido #${p.numero} pago` : "Pagamento desfeito");
+    toast.ok(mensagem);
     salvo(campos);
   }
 
+  const receber = { pago: true, forma_pagamento: forma, ...(finalizar ? { status: "entregue" as const } : {}) };
+  const semCaixa = caixa === null && !p.pago;
+
   return (
-    <Modal titulo={`Pagamento · #${p.numero}`} fechar={fechar}
+    <Modal titulo={`${finalizar ? "Finalizar" : "Pagamento"} · #${p.numero}`} fechar={fechar}
       rodape={p.pago ? (
-        <button disabled={salvando} onClick={() => salvar({ pago: false, pago_em: null })}
+        <button disabled={salvando} onClick={() => salvar({ pago: false }, "Pagamento desfeito")}
           className="h-12 w-full rounded-lg border border-red-300 font-semibold text-red-600 disabled:opacity-50">
           Desfazer pagamento
         </button>
       ) : (
-        <button disabled={!forma || salvando} onClick={() => salvar({ pago: true, pago_em: new Date().toISOString(), forma_pagamento: forma })}
-          className="h-12 w-full rounded-lg bg-emerald-600 font-semibold text-white disabled:opacity-50">
-          Confirmar pagamento de {brl(p.total)}
-        </button>
+        <div className="space-y-2">
+          <button disabled={!forma || !caixa || salvando}
+            onClick={() => salvar(receber, finalizar ? `Pedido #${p.numero} recebido e finalizado` : `Pedido #${p.numero} pago`)}
+            className="h-12 w-full rounded-lg bg-emerald-600 font-semibold text-white disabled:opacity-50">
+            {finalizar ? `Receber ${brl(p.total)} e finalizar` : `Confirmar pagamento de ${brl(p.total)}`}
+          </button>
+          {finalizar && (
+            <button disabled={salvando} onClick={() => salvar({ status: "entregue" }, `Pedido #${p.numero} finalizado sem receber`)}
+              className="h-11 w-full rounded-lg border border-neutral-300 font-semibold dark:border-neutral-700">
+              Finalizar sem receber
+            </button>
+          )}
+        </div>
       )}>
       <div className="space-y-4 p-5">
         <p className="text-center text-3xl font-bold tabular-nums">{brl(p.total)}</p>
@@ -482,7 +472,8 @@ function PagarModal({ p, fechar, salvo }: {
           </p>
         ) : (
           <>
-            <EscolhaPagamento valor={forma} mudar={setForma} />
+            {semCaixa && <AbrirCaixa empresaId={empresaId} aberto={recarregarCaixa} compacto />}
+            <EscolhaPagamento formas={formas} valor={forma} mudar={setForma} />
             {forma === "dinheiro" && (
               <label className="block">
                 <span className="mb-1 block text-sm font-medium">Valor recebido (para calcular o troco)</span>

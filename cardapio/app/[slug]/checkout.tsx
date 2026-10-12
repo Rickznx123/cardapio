@@ -180,7 +180,7 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
               </section>
               <section className="space-y-3">
                 <h2 className="font-semibold">Como vai pagar?</h2>
-                <EscolhaPagamento valor={forma} mudar={(f) => { setForma(f); if (f !== "dinheiro") setTroco(null); }} />
+                <EscolhaPagamento formas={empresa.formas_pagamento} valor={forma} mudar={(f) => { setForma(f); if (f !== "dinheiro") setTroco(null); }} />
                 {forma === "dinheiro" && <CampoTroco total={total} valor={troco} mudar={setTroco} />}
                 <p className="text-xs text-neutral-500">O pagamento é feito na entrega ou na retirada.</p>
               </section>

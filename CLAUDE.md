@@ -30,6 +30,13 @@ Interface 100% em português (pt-BR), valores em R$.
 - Editor do cardápio (`app/painel/cardapio/`) salva sozinho e de forma otimista: atualiza a tela, grava no
   banco e, se falhar, desfaz só os campos alterados + toast de erro. Produto novo é rascunho local até ter nome e preço.
 - Destaques: máx. 10 por empresa, garantido no banco (trigger); no cardápio só aparecem os disponíveis de categorias visíveis.
+- Caixa: pagamento só com caixa aberto (o painel avisa e oferece abrir). O trigger `pedidos_caixa` liga o pedido ao caixa
+  aberto e grava `pago_em` com a hora do servidor; pagamento de caixa já fechado não pode ser desfeito. Abrir, sangria,
+  suprimento e fechar só via RPC (`abrir_caixa`, `registrar_movimento`, `fechar_caixa`); o fechamento grava a foto do esperado.
+- Relatórios: toda agregação no banco (`relatorio_vendas`, `resumo_caixa`); o client só formata.
+- Formas aceitas: `empresas.formas_pagamento` (mín. 1). As RPCs de pedido recusam forma desligada.
+- Reordenar (drag-and-drop) só via RPC `reordenar(tabela, ids[])`, numa transação.
+- Cupom: `config_impressao` (largura 58/80, vias, via da cozinha sem preços, cabeçalho, rodapé) via `cuponsPedido`.
 
 ## Áreas / rotas
 | Rota | Quem usa | O quê |
@@ -38,9 +45,9 @@ Interface 100% em português (pt-BR), valores em R$.
 | `/[slug]` | cliente | cardápio: capa, informações, busca, último pedido (repetir), carrinho, checkout com pagamento/troco |
 | `/[slug]/pedido/[id]` | cliente | confirmação via RPC `ver_pedido_publico` (status atualiza a cada 20s) + botão WhatsApp |
 | `/login` | dono/caixa | login por e-mail/senha → `/painel` |
-| `/painel` | dono/caixa | painel unificado (substitui `/admin` e `/balcao`). Seções: Pedidos (abas Balcão/Delivery/Mesas, filtros, novo pedido, pagar, finalizar, comandas), Cardápio (editor único "editar no lugar": capa/logo/nome, categorias e itens com arrastar via @dnd-kit, destaques, drawer do item), Mesas, Entrega, Equipe, Configurações. Caixa vê só Pedidos. Sidebar: loja aberta/fechada, ver cardápio, QR Code |
-| `/painel/impressao` | dono/caixa | instruções do atalho do Chrome com `--kiosk-printing` no Windows |
-| `/admin`, `/balcao`, `/balcao/configurar` | — | redirects (next.config) para `/painel` e `/painel/impressao` |
+| `/painel` | dono/caixa | painel unificado (substitui `/admin` e `/balcao`); seção na URL `?secao=`. Sidebar com grupos: Pedidos · Vendas ▸ (Histórico de pedidos, Caixas, Relatórios) · Cardápio (editor "editar no lugar", @dnd-kit) · Mesas · Entrega · Configurações ▸ (Gerais, Métodos de pagamento, Info do negócio, Equipe e funções, Impressoras e tickets). Caixa vê Pedidos e Vendas. Rodapé: loja aberta/fechada (dono e caixa, RPC `alternar_loja`), ver cardápio, QR Code |
+| `PATCH /api/garcom` | dono | troca PIN do garçom / senha do caixa |
+| `/admin`, `/balcao`, `/balcao/configurar`, `/painel/impressao` | — | redirects (next.config) para `/painel` e `/painel?secao=impressao` |
 | `/[slug]/garcom` | garçom | PWA: login nome+PIN; grade de mesas → comanda → adicionar itens (obs. por item) → enviar |
 | `/[slug]/garcom/manifest` | — | manifest do PWA por empresa (`start_url` = `/[slug]/garcom`) |
 | `POST /api/garcom` | dono | cadastra garçom (nome + PIN) ou caixa (nome + e-mail + senha) |
@@ -62,7 +69,7 @@ O garçom escolhe o nome e digita o PIN; `/api/garcom/login` busca o e-mail com 
   só imprime se voltou linha (evita duplicar com duas abas). Toggle "impressão automática" no localStorage.
 - Impressão em iframe oculto (`lib/impressao.ts`, sandbox sem scripts), uma por vez.
 - O cupom traz forma de pagamento, troco ("levar de troco") e PAGO/NÃO PAGO.
-- Produção: Chrome com `--kiosk-printing` (ver `/painel/impressao`). Em dev, testar com "Salvar como PDF".
+- Produção: Chrome com `--kiosk-printing` (ver Configurações ▸ Impressoras e tickets). Em dev, testar com "Salvar como PDF".
 
 ## Plano de build
 - **Dia 1:** setup, auth, layout, admin completo (CRUDs + upload de fotos)
@@ -77,3 +84,6 @@ O garçom escolhe o nome e digita o PIN; `/api/garcom/login` busca o e-mail com 
   `capa_url`/`descricao`/`horario_texto` em `empresas`; slug `painel` reservado; `criar_pedido_publico` com
   pagamento; `criar_pedido_balcao`; `fechar_comanda`; `ver_pedido_publico` devolve pagamento
 - `006_destaques.sql`: `itens.destaque` + trigger `itens_limite_destaques` (máx. 10 por empresa)
+- `007_vendas_config.sql`: `caixas`, `caixa_movimentos`, `pedidos.caixa_id` + trigger `pedidos_caixa`; RPCs `abrir_caixa`,
+  `registrar_movimento`, `fechar_caixa`, `resumo_caixa`, `relatorio_vendas`, `alternar_loja`, `reordenar`; em `empresas`:
+  `formas_pagamento`, tempos, `horarios`, `config_impressao`; forma aceita checada em `_criar_pedido_externo`

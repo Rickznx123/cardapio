@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { UserPlus } from "lucide-react";
+import { Check, KeyRound, Minus, UserPlus } from "lucide-react";
+import { Modal } from "@/components/modal";
 import { toast } from "@/components/toast";
 import { Ativo, atualizar, botao, card, input, rotulo, useLista } from "./ui";
 
@@ -18,6 +19,7 @@ export function Equipe({ empresaId }: { empresaId: string }) {
   const [lista, recarregar] = useLista<Membro>("membros", empresaId, "nome");
   const [enviando, setEnviando] = useState(false);
   const [papel, setPapel] = useState<"garcom" | "caixa">("garcom");
+  const [trocando, setTrocando] = useState<Membro | null>(null);
 
   async function cadastrar(form: HTMLFormElement) {
     setEnviando(true);
@@ -74,11 +76,93 @@ export function Equipe({ empresaId }: { empresaId: string }) {
             <span className="min-w-0 flex-1 truncate font-medium">{m.nome}</span>
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${corPapel[m.papel]}`}>{papeis[m.papel]}</span>
             {m.papel !== "dono" && (
-              <Ativo marcado={m.ativo} rotulo="" salvar={(v) => atualizar("membros", m.id, { ativo: v }).then(recarregar)} />
+              <>
+                <button onClick={() => setTrocando(m)} aria-label={`Trocar ${m.papel === "garcom" ? "PIN" : "senha"} de ${m.nome}`}
+                  className="flex h-9 items-center gap-1.5 rounded-lg px-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                  <KeyRound className="size-4" /><span className="hidden sm:inline">{m.papel === "garcom" ? "PIN" : "Senha"}</span>
+                </button>
+                <Ativo marcado={m.ativo} rotulo="" salvar={(v) => atualizar("membros", m.id, { ativo: v }).then(recarregar)} />
+              </>
             )}
           </li>
         ))}
       </ul>
+      <p className="text-xs text-neutral-500">A caixa de seleção ativa ou desativa o acesso. Desativado não entra em nenhuma tela.</p>
+
+      <section className={`${card} overflow-x-auto p-0`}>
+        <h2 className="p-4 pb-2 text-lg font-semibold">O que cada função pode fazer</h2>
+        <table className="w-full min-w-[520px] text-sm">
+          <thead>
+            <tr className="border-b border-neutral-200 text-left text-neutral-500 dark:border-neutral-800">
+              <th className="px-4 py-2 font-medium">Função</th>
+              {(["dono", "caixa", "garcom"] as const).map((p) => <th key={p} className="px-2 py-2 text-center font-medium">{papeis[p]}</th>)}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+            {PERMISSOES.map(([acao, ...pode]) => (
+              <tr key={acao}>
+                <td className="px-4 py-2">{acao}</td>
+                {pode.map((sim, n) => (
+                  <td key={n} className="px-2 py-2 text-center">
+                    {sim ? <Check className="mx-auto size-4 text-emerald-600" aria-label="Sim" /> : <Minus className="mx-auto size-4 text-neutral-300" aria-label="Não" />}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      {trocando && <TrocarSegredo membro={trocando} fechar={() => setTrocando(null)} />}
     </div>
+  );
+}
+
+// [ação, dono, caixa, garçom] — espelha a RLS e as RPCs do schema.sql.
+const PERMISSOES: [string, boolean, boolean, boolean][] = [
+  ["Lançar pedido de mesa (app do garçom)", true, true, true],
+  ["Ver e atender pedidos, imprimir, mudar status", true, true, false],
+  ["Novo pedido no balcão, receber pagamento, cancelar", true, true, false],
+  ["Abrir e fechar a loja para pedidos", true, true, false],
+  ["Caixa: abrir, sangria, suprimento, fechar", true, true, false],
+  ["Histórico de pedidos e relatórios", true, true, false],
+  ["Editar cardápio, mesas, bairros e taxas", true, false, false],
+  ["Configurações, equipe e métodos de pagamento", true, false, false],
+];
+
+function TrocarSegredo({ membro, fechar }: { membro: Membro; fechar: () => void }) {
+  const garcom = membro.papel === "garcom";
+  const [valor, setValor] = useState("");
+  const [enviando, setEnviando] = useState(false);
+
+  async function salvar() {
+    setEnviando(true);
+    const r = await fetch("/api/garcom", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ membro_id: membro.id, segredo: valor }),
+    });
+    setEnviando(false);
+    if (!r.ok) return toast.erro((await r.json().catch(() => ({}))).erro ?? "Não foi possível trocar");
+    toast.ok(garcom ? `PIN de ${membro.nome} trocado` : `Senha de ${membro.nome} trocada`);
+    fechar();
+  }
+
+  return (
+    <Modal titulo={garcom ? `Novo PIN de ${membro.nome}` : `Nova senha de ${membro.nome}`} fechar={fechar}
+      rodape={<button form="trocar-segredo" disabled={enviando} className={`${botao} w-full`}>{enviando ? "Salvando…" : "Salvar"}</button>}>
+      <form id="trocar-segredo" className="p-5" onSubmit={(e) => { e.preventDefault(); salvar(); }}>
+        <label className="block"><span className={rotulo}>{garcom ? "PIN de 6 dígitos" : "Senha (mín. 6 caracteres)"}</span>
+          {garcom ? (
+            <input value={valor} onChange={(e) => setValor(e.target.value.replace(/\D/g, "").slice(0, 6))} required autoFocus
+              inputMode="numeric" pattern="\d{6}" title="6 dígitos" autoComplete="off" className={`${input} tracking-[0.4em]`} />
+          ) : (
+            <input value={valor} onChange={(e) => setValor(e.target.value)} type="password" required autoFocus minLength={6}
+              autoComplete="new-password" className={input} />
+          )}
+        </label>
+        <p className="mt-2 text-sm text-neutral-500">{garcom ? "O garçom usa o novo PIN no próximo login." : "A senha antiga deixa de funcionar."}</p>
+      </form>
+    </Modal>
   );
 }

@@ -5,11 +5,31 @@ export const FORMAS: Record<FormaPagamento, string> = {
 
 export const brl = (n: number) => Number(n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+export const TODAS_FORMAS = Object.keys(FORMAS) as FormaPagamento[];
+
+// Horários por dia da semana (empresas.horarios).
+export const DIAS = [
+  ["dom", "Domingo"], ["seg", "Segunda"], ["ter", "Terça"], ["qua", "Quarta"],
+  ["qui", "Quinta"], ["sex", "Sexta"], ["sab", "Sábado"],
+] as const;
+export type Dia = (typeof DIAS)[number][0];
+export type Horarios = Partial<Record<Dia, { aberto: boolean; abre: string; fecha: string }>>;
+
+// Tempo estimado em texto: "30–45 min", "~20 min" ou null.
+export function textoTempo(min: number | null, max?: number | null) {
+  if (min == null && max == null) return null;
+  if (min != null && max != null && max !== min) return `${min}–${max} min`;
+  return `~${min ?? max} min`;
+}
+
 export type EmpresaPublica = {
   id: string; nome: string; slug: string; logo_url: string | null; cor_primaria: string | null;
   whatsapp: string | null; endereco: string | null;
   capa_url: string | null; descricao: string | null; horario_texto: string | null;
   aceita_entrega: boolean; aceita_retirada: boolean; aberto: boolean;
+  formas_pagamento: FormaPagamento[];
+  tempo_entrega_min: number | null; tempo_entrega_max: number | null; tempo_retirada: number | null;
+  horarios: Horarios | null;
 };
 export type CategoriaPublica = { id: string; nome: string };
 export type ItemPublico = {

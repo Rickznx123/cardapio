@@ -1,17 +1,20 @@
 "use client";
 
 import { Banknote, CreditCard, QrCode } from "lucide-react";
-import { brl, FORMAS, type FormaPagamento } from "@/lib/tipos";
+import { brl, FORMAS, type FormaPagamento, TODAS_FORMAS } from "@/lib/tipos";
 
 const ICONES: Record<FormaPagamento, typeof Banknote> = {
   dinheiro: Banknote, pix: QrCode, cartao_credito: CreditCard, cartao_debito: CreditCard,
 };
 
 // Destaque usa --cor (cor da loja no cardápio; rosa nas áreas da equipe).
-export function EscolhaPagamento({ valor, mudar }: { valor: FormaPagamento | null; mudar: (f: FormaPagamento) => void }) {
+// `formas`: só as aceitas pela loja (empresas.formas_pagamento); padrão = todas.
+export function EscolhaPagamento({ valor, mudar, formas = TODAS_FORMAS }: {
+  valor: FormaPagamento | null; mudar: (f: FormaPagamento) => void; formas?: readonly FormaPagamento[];
+}) {
   return (
     <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Forma de pagamento">
-      {(Object.keys(FORMAS) as FormaPagamento[]).map((f) => {
+      {TODAS_FORMAS.filter((f) => formas.includes(f)).map((f) => {
         const Icone = ICONES[f];
         return (
           <button key={f} type="button" role="radio" aria-checked={valor === f} onClick={() => mudar(f)}

@@ -15,7 +15,7 @@ const supabase = createClient();
 const campo = "h-11 w-full rounded-lg border border-neutral-300 bg-transparent px-3 text-base dark:border-neutral-700 dark:bg-neutral-900";
 
 // Pedido lançado pela equipe (telefone, balcão). Preço e taxa calculados no banco (criar_pedido_balcao).
-export function NovoPedido({ empresaId, fechar }: { empresaId: string; fechar: () => void }) {
+export function NovoPedido({ empresaId, formas, fechar }: { empresaId: string; formas: FormaPagamento[]; fechar: () => void }) {
   const cardapio = useCardapio(empresaId);
   const [bairros, setBairros] = useState<BairroPublico[]>([]);
   const [etapa, setEtapa] = useState<"itens" | "dados">("itens");
@@ -125,7 +125,7 @@ export function NovoPedido({ empresaId, fechar }: { empresaId: string; fechar: (
           )}
           <section className="space-y-3">
             <h3 className="text-sm font-semibold">Pagamento (opcional)</h3>
-            <EscolhaPagamento valor={forma} mudar={(f) => { setForma(f); if (f !== "dinheiro") setTroco(null); }} />
+            <EscolhaPagamento formas={formas} valor={forma} mudar={(f) => { setForma(f); if (f !== "dinheiro") setTroco(null); }} />
             {forma === "dinheiro" && <CampoTroco total={total} valor={troco} mudar={setTroco} />}
           </section>
           <label className="block"><span className="mb-1 block text-sm font-medium">Observação</span>

@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Bike, Clock, CreditCard, Info, List, MapPin, MessageCircle, RotateCcw, Search, ShoppingBag, Star, Store, X,
+  Bike, Clock, CreditCard, Info, List, MapPin, MessageCircle, RotateCcw, Search, ShoppingBag, Star, Store, Timer, X,
 } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { useArmazenado } from "@/lib/armazenado";
 import { varsCor } from "@/lib/cor";
 import { adicionarCom, type LinhaCarrinho } from "@/lib/linhas";
 import {
-  type BairroPublico, brl, type CategoriaPublica, type EmpresaPublica, FORMAS, type ItemPublico,
+  type BairroPublico, brl, type CategoriaPublica, DIAS, type EmpresaPublica, FORMAS, type ItemPublico, textoTempo,
 } from "@/lib/tipos";
 import { Checkout } from "./checkout";
 import { ItemSheet } from "./item-sheet";
@@ -168,8 +168,16 @@ function Cabecalho({ empresa, abrirInfo }: { empresa: EmpresaPublica; abrirInfo:
         {empresa.descricao && <p className="mt-1 line-clamp-2 text-sm text-neutral-600">{empresa.descricao}</p>}
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-neutral-600">
           {empresa.horario_texto && <span className="flex items-center gap-1"><Clock className="size-4" /> {empresa.horario_texto}</span>}
-          {empresa.aceita_entrega && <span className="flex items-center gap-1"><Bike className="size-4" /> Entrega</span>}
-          {empresa.aceita_retirada && <span className="flex items-center gap-1"><Store className="size-4" /> Retirada</span>}
+          {empresa.aceita_entrega && (
+            <span className="flex items-center gap-1"><Bike className="size-4" /> Entrega
+              {textoTempo(empresa.tempo_entrega_min, empresa.tempo_entrega_max) && ` · ${textoTempo(empresa.tempo_entrega_min, empresa.tempo_entrega_max)}`}
+            </span>
+          )}
+          {empresa.aceita_retirada && (
+            <span className="flex items-center gap-1"><Store className="size-4" /> Retirada
+              {textoTempo(empresa.tempo_retirada) && ` · ${textoTempo(empresa.tempo_retirada)}`}
+            </span>
+          )}
         </div>
         {!empresa.aberto && (
           <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
@@ -193,15 +201,41 @@ function InfoModal({ empresa, bairros, fechar }: { empresa: EmpresaPublica; bair
             <p className="text-neutral-700">{empresa.endereco}</p>
           </div>
         )}
-        {empresa.horario_texto && (
+        {empresa.horarios && Object.keys(empresa.horarios).length > 0 ? (
+          <div className={bloco}>
+            <h3 className="flex items-center gap-2 font-semibold"><Clock className="size-4" /> Horário</h3>
+            <dl className="divide-y divide-neutral-100 text-sm">
+              {DIAS.map(([d, nome]) => {
+                const h = empresa.horarios?.[d];
+                return (
+                  <div key={d} className="flex justify-between py-1.5">
+                    <dt>{nome}</dt>
+                    <dd className={h?.aberto ? "tabular-nums" : "text-neutral-500"}>{h?.aberto ? `${h.abre} às ${h.fecha}` : "Fechado"}</dd>
+                  </div>
+                );
+              })}
+            </dl>
+          </div>
+        ) : empresa.horario_texto && (
           <div className={bloco}>
             <h3 className="flex items-center gap-2 font-semibold"><Clock className="size-4" /> Horário</h3>
             <p className="whitespace-pre-line text-neutral-700">{empresa.horario_texto}</p>
           </div>
         )}
+        {(textoTempo(empresa.tempo_entrega_min, empresa.tempo_entrega_max) || textoTempo(empresa.tempo_retirada)) && (
+          <div className={bloco}>
+            <h3 className="flex items-center gap-2 font-semibold"><Timer className="size-4" /> Tempo estimado</h3>
+            {empresa.aceita_entrega && textoTempo(empresa.tempo_entrega_min, empresa.tempo_entrega_max) && (
+              <p className="text-neutral-700">Entrega: {textoTempo(empresa.tempo_entrega_min, empresa.tempo_entrega_max)}</p>
+            )}
+            {empresa.aceita_retirada && textoTempo(empresa.tempo_retirada) && (
+              <p className="text-neutral-700">Retirada: {textoTempo(empresa.tempo_retirada)}</p>
+            )}
+          </div>
+        )}
         <div className={bloco}>
           <h3 className="flex items-center gap-2 font-semibold"><CreditCard className="size-4" /> Formas de pagamento</h3>
-          <p className="text-neutral-700">{Object.values(FORMAS).join(" · ")}</p>
+          <p className="text-neutral-700">{(empresa.formas_pagamento ?? []).map((f) => FORMAS[f]).join(" · ")}</p>
         </div>
         {empresa.aceita_entrega && bairros.length > 0 && (
           <div className={bloco}>
