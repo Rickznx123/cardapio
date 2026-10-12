@@ -5,9 +5,15 @@ export type LinhaCarrinho = { id: string; item_id: string; quantidade: number; o
 const novoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 
 // Toque em "Adicionar": soma na linha sem observação do item, ou cria uma.
-export function adicionar(linhas: LinhaCarrinho[], item_id: string): LinhaCarrinho[] {
-  const livre = linhas.find((l) => l.item_id === item_id && !l.observacao.trim());
-  return livre ? mudarQtd(linhas, livre.id, 1) : novaLinha(linhas, item_id);
+export const adicionar = (linhas: LinhaCarrinho[], item_id: string) => adicionarCom(linhas, item_id, 1, "");
+
+// Bottom sheet: soma na linha com a mesma observação, ou cria uma.
+export function adicionarCom(linhas: LinhaCarrinho[], item_id: string, quantidade: number, observacao: string): LinhaCarrinho[] {
+  const obs = observacao.trim();
+  const igual = linhas.find((l) => l.item_id === item_id && l.observacao.trim() === obs);
+  return igual
+    ? mudarQtd(linhas, igual.id, quantidade)
+    : [...linhas, { id: novoId(), item_id, quantidade, observacao: obs }];
 }
 
 // "+ adicionar com outra observação": sempre uma linha nova.

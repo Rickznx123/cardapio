@@ -6,7 +6,7 @@ import { Cardapio } from "./cardapio";
 
 export default function Page({ params }: PageProps<"/[slug]">) {
   return (
-    <Suspense fallback={<p className="p-4">Carregando cardápio…</p>}>
+    <Suspense fallback={<Esqueleto />}>
       <Conteudo params={params} />
     </Suspense>
   );
@@ -38,5 +38,18 @@ async function Conteudo({ params }: { params: Promise<{ slug: string }> }) {
       itens={(itens.data ?? []) as ItemPublico[]}
       bairros={(bairros.data ?? []) as BairroPublico[]}
     />
+  );
+}
+
+function Esqueleto() {
+  return (
+    <div className="mx-auto w-full max-w-2xl animate-pulse bg-white" aria-label="Carregando cardápio">
+      <div className="h-28 bg-neutral-200" />
+      <div className="space-y-3 p-4">
+        <div className="-mt-12 size-20 rounded-full bg-neutral-300 ring-4 ring-white" />
+        <div className="h-7 w-2/3 rounded bg-neutral-200" />
+        {[0, 1, 2, 3].map((n) => <div key={n} className="h-24 rounded-2xl bg-neutral-100" />)}
+      </div>
+    </div>
   );
 }

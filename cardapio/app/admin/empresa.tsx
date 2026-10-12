@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "@/components/toast";
 import { enviarFoto } from "@/lib/foto";
 import { erroSlug } from "@/lib/slug";
-import { botao, input, ok, supabase } from "./ui";
+import { botao, card, FotoInput, input, ok, rotulo, supabase } from "./ui";
 
 export type Empresa = {
   id: string; nome: string; slug: string; logo_url: string | null; cor_primaria: string | null;
@@ -11,12 +12,15 @@ export type Empresa = {
   aceita_entrega: boolean; aceita_retirada: boolean; aberto: boolean;
 };
 
+const opcao = "flex cursor-pointer items-center justify-between gap-3 py-3";
+const check = "size-5 accent-rose-600";
+
 export function EmpresaForm({ empresa, mudou }: { empresa: Empresa; mudou: (e: Empresa) => void }) {
   const [salvando, setSalvando] = useState(false);
 
   async function salvar(f: FormData) {
     const problema = erroSlug(String(f.get("slug")).trim().toLowerCase());
-    if (problema) return alert(problema);
+    if (problema) return toast.erro(problema);
     setSalvando(true);
     try {
       const logo = f.get("logo") as File;
@@ -31,39 +35,62 @@ export function EmpresaForm({ empresa, mudou }: { empresa: Empresa; mudou: (e: E
         aberto: f.get("aberto") === "on",
         logo_url: logo.size ? await enviarFoto(supabase, empresa.id, logo) : empresa.logo_url,
       };
-      if (await ok(supabase.from("empresas").update(campos).eq("id", empresa.id))) {
+      if (await ok(supabase.from("empresas").update(campos).eq("id", empresa.id), "Dados da empresa salvos")) {
         mudou({ ...empresa, ...campos });
-        alert("Salvo!");
       }
     } catch (e) {
-      alert((e as Error).message);
+      toast.erro((e as Error).message);
     } finally {
       setSalvando(false);
     }
   }
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); salvar(new FormData(e.currentTarget)); }} className="space-y-3">
-      <label className="block">Nome<input name="nome" required defaultValue={empresa.nome} className={input} /></label>
-      <label className="block">Endereço do cardápio (slug)
-        <input name="slug" required pattern="[a-z0-9\-]{3,40}" title="3 a 40 caracteres: letras minúsculas, números e hífen"
-          defaultValue={empresa.slug} className={input} />
-      </label>
-      <label className="block">WhatsApp (com DDI e DDD, ex: 5566999999999)
-        <input name="whatsapp" inputMode="tel" defaultValue={empresa.whatsapp ?? ""} className={input} />
-      </label>
-      <label className="block">Endereço<input name="endereco" defaultValue={empresa.endereco ?? ""} className={input} /></label>
-      <label className="flex items-center gap-2">Cor
-        <input name="cor_primaria" type="color" defaultValue={empresa.cor_primaria ?? "#E11D48"} />
-      </label>
-      <div className="flex items-center gap-3">
-        {empresa.logo_url && <img src={empresa.logo_url} alt="Logo" className="h-16 w-16 rounded object-cover" />}
-        <label className="block">Logo<input name="logo" type="file" accept="image/*" className="block text-sm" /></label>
-      </div>
-      <label className="flex gap-2"><input name="aberto" type="checkbox" defaultChecked={empresa.aberto} />Loja aberta para pedidos</label>
-      <label className="flex gap-2"><input name="aceita_entrega" type="checkbox" defaultChecked={empresa.aceita_entrega} />Faz entrega</label>
-      <label className="flex gap-2"><input name="aceita_retirada" type="checkbox" defaultChecked={empresa.aceita_retirada} />Aceita retirada</label>
-      <button disabled={salvando} className={botao}>{salvando ? "Salvando…" : "Salvar"}</button>
+    <form onSubmit={(e) => { e.preventDefault(); salvar(new FormData(e.currentTarget)); }} className="space-y-4">
+      <section className={`${card} space-y-4`}>
+        <h2 className="text-lg font-semibold">Identidade</h2>
+        <FotoInput name="logo" atual={empresa.logo_url} titulo="Logo" />
+        <label className="block"><span className={rotulo}>Nome</span>
+          <input name="nome" required defaultValue={empresa.nome} className={input} />
+        </label>
+        <label className="block"><span className={rotulo}>Endereço do cardápio</span>
+          <span className="flex items-center rounded-lg border border-neutral-300 focus-within:ring-2 focus-within:ring-rose-500/30 dark:border-neutral-700">
+            <span className="pl-3 text-neutral-500">…/</span>
+            <input name="slug" required pattern="[a-z0-9\-]{3,40}" title="3 a 40 caracteres: letras minúsculas, números e hífen"
+              defaultValue={empresa.slug} className="h-11 w-full min-w-0 rounded-lg bg-transparent px-1 text-base focus:outline-none" />
+          </span>
+        </label>
+        <label className="flex items-center gap-3"><span className="text-sm font-medium">Cor de destaque</span>
+          <input name="cor_primaria" type="color" defaultValue={empresa.cor_primaria ?? "#E11D48"}
+            className="h-11 w-16 cursor-pointer rounded-lg border border-neutral-300 dark:border-neutral-700" />
+        </label>
+      </section>
+
+      <section className={`${card} space-y-4`}>
+        <h2 className="text-lg font-semibold">Contato</h2>
+        <label className="block"><span className={rotulo}>WhatsApp (com DDI e DDD, ex.: 5566999999999)</span>
+          <input name="whatsapp" inputMode="tel" defaultValue={empresa.whatsapp ?? ""} className={input} />
+        </label>
+        <label className="block"><span className={rotulo}>Endereço</span>
+          <input name="endereco" defaultValue={empresa.endereco ?? ""} className={input} />
+        </label>
+      </section>
+
+      <section className={`${card} divide-y divide-neutral-200 py-1 dark:divide-neutral-800`}>
+        <label className={opcao}>
+          <span><span className="block font-medium">Loja aberta para pedidos</span>
+            <span className="text-sm text-neutral-500">Desligado, o cardápio aparece mas não aceita pedidos.</span></span>
+          <input name="aberto" type="checkbox" defaultChecked={empresa.aberto} className={check} />
+        </label>
+        <label className={opcao}><span className="font-medium">Faz entrega</span>
+          <input name="aceita_entrega" type="checkbox" defaultChecked={empresa.aceita_entrega} className={check} />
+        </label>
+        <label className={opcao}><span className="font-medium">Aceita retirada</span>
+          <input name="aceita_retirada" type="checkbox" defaultChecked={empresa.aceita_retirada} className={check} />
+        </label>
+      </section>
+
+      <button disabled={salvando} className={`${botao} w-full sm:w-auto`}>{salvando ? "Salvando…" : "Salvar alterações"}</button>
     </form>
   );
 }

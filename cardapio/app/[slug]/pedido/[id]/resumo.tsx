@@ -3,11 +3,18 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { Bike, ChefHat, CircleCheck, CircleX, MessageCircle, PackageCheck, Receipt, Store } from "lucide-react";
+import { varsCor } from "@/lib/cor";
 import { createClient } from "@/lib/supabase/client";
 import { brl, type PedidoPublico, STATUS } from "@/lib/tipos";
 
 const supabase = createClient();
-const ETAPAS = ["novo", "preparo", "pronto", "entregue"] as const;
+const ETAPAS = [
+  { s: "novo", Icone: Receipt },
+  { s: "preparo", Icone: ChefHat },
+  { s: "pronto", Icone: PackageCheck },
+  { s: "entregue", Icone: CircleCheck },
+] as const;
 
 function mensagemWhatsApp(p: PedidoPublico, empresa: string) {
   return [
@@ -25,13 +32,16 @@ function mensagemWhatsApp(p: PedidoPublico, empresa: string) {
   ].join("\n");
 }
 
+type Empresa = { nome: string; whatsapp: string | null; cor_primaria: string | null };
+
 export function Pedido() {
   const { slug, id } = useParams<{ slug: string; id: string }>();
   const [p, setP] = useState<PedidoPublico | null>();
-  const [empresa, setEmpresa] = useState<{ nome: string; whatsapp: string | null } | null>(null);
+  const [empresa, setEmpresa] = useState<Empresa | null>(null);
 
   useEffect(() => {
-    supabase.from("empresas").select("nome, whatsapp").eq("slug", slug).maybeSingle().then(({ data }) => setEmpresa(data));
+    supabase.from("empresas").select("nome, whatsapp, cor_primaria").eq("slug", slug).maybeSingle()
+      .then(({ data }) => setEmpresa(data));
   }, [slug]);
 
   // Atualiza o status a cada 20s até o pedido terminar (anon não tem Realtime em pedidos).
@@ -47,60 +57,87 @@ export function Pedido() {
     return () => clearTimeout(timer);
   }, [slug, id]);
 
-  if (p === undefined) return <p className="p-4">Carregando…</p>;
+  const casca = (filhos: React.ReactNode) => (
+    <div style={varsCor(empresa?.cor_primaria ?? null)} className="min-h-dvh flex-1 bg-neutral-50 px-4 py-6 text-neutral-900">
+      <main className="mx-auto w-full max-w-md space-y-4">{filhos}</main>
+    </div>
+  );
+
+  if (p === undefined) {
+    return casca(<div className="h-64 animate-pulse rounded-3xl bg-neutral-200" aria-label="Carregando" />);
+  }
   if (p === null) {
-    return (
-      <main className="mx-auto max-w-md space-y-3 p-4 text-center">
+    return casca(
+      <div className="space-y-3 rounded-3xl bg-white p-8 text-center shadow-sm">
         <h1 className="text-xl font-bold">Pedido não encontrado</h1>
-        <Link href={`/${slug}`} className="underline">Voltar ao cardápio</Link>
-      </main>
+        <Link href={`/${slug}`} className="inline-block font-medium text-(--cor) underline">Voltar ao cardápio</Link>
+      </div>,
     );
   }
 
-  const etapa = ETAPAS.indexOf(p.status as (typeof ETAPAS)[number]);
+  const etapa = ETAPAS.findIndex((e) => e.s === p.status);
+  const cancelado = p.status === "cancelado";
 
-  return (
-    <main className="mx-auto w-full max-w-md space-y-4 p-4 text-center">
-      <p className="text-5xl">{p.status === "cancelado" ? "❌" : "✅"}</p>
-      <h1 className="text-2xl font-bold">Pedido #{p.numero}</h1>
+  return casca(
+    <>
+      <section className="rounded-3xl bg-white p-6 text-center shadow-sm">
+        {cancelado ? (
+          <CircleX className="mx-auto size-16 text-red-600" />
+        ) : (
+          <CircleCheck className="mx-auto size-16 text-emerald-600" />
+        )}
+        <p className="mt-2 text-sm text-neutral-500">{empresa?.nome}</p>
+        <h1 className="text-3xl font-bold">Pedido #{p.numero}</h1>
+        <p className="mt-1 flex items-center justify-center gap-1 text-sm text-neutral-600">
+          {p.tipo === "entrega" ? <Bike className="size-4" /> : <Store className="size-4" />}
+          {p.tipo === "entrega" ? `Entrega · ${p.bairro_nome}` : "Retirada no local"}
+        </p>
 
-      {p.status === "cancelado" ? (
-        <p className="font-semibold text-red-600">Pedido cancelado. Fale com o estabelecimento.</p>
-      ) : (
-        <ol className="flex justify-between text-xs" aria-label="Andamento do pedido">
-          {ETAPAS.map((s, n) => (
-            <li key={s} aria-current={n === etapa ? "step" : undefined}
-              className={`flex-1 border-t-4 pt-1 ${n <= etapa ? "border-green-600 font-semibold" : "border-gray-200 text-gray-400"}`}>
-              {STATUS[s]}
+        {cancelado ? (
+          <p className="mt-4 rounded-xl bg-red-50 p-3 font-semibold text-red-700">Pedido cancelado. Fale com o estabelecimento.</p>
+        ) : (
+          <ol className="mt-6 grid grid-cols-4 gap-1" aria-label="Andamento do pedido">
+            {ETAPAS.map(({ s, Icone }, n) => (
+              <li key={s} aria-current={n === etapa ? "step" : undefined} className="flex flex-col items-center gap-1">
+                <span className={`flex size-11 items-center justify-center rounded-full ${
+                  n < etapa ? "bg-(--cor)/15 text-(--cor)" : n === etapa ? "bg-(--cor) text-(--cor-texto) ring-4 ring-(--cor)/20" : "bg-neutral-100 text-neutral-400"}`}>
+                  <Icone className="size-5" />
+                </span>
+                <span className={`text-xs ${n <= etapa ? "font-semibold" : "text-neutral-400"}`}>{STATUS[s]}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+        {!cancelado && p.status !== "entregue" && (
+          <p className="mt-4 text-xs text-neutral-400">Esta página se atualiza sozinha.</p>
+        )}
+      </section>
+
+      <section className="rounded-3xl bg-white p-5 shadow-sm">
+        <ul className="space-y-2">
+          {p.itens.map((i, n) => (
+            <li key={n}>
+              <div className="flex justify-between gap-2"><span>{i.quantidade}x {i.nome}</span><span>{brl(i.preco * i.quantidade)}</span></div>
+              {i.observacao && <p className="text-sm text-neutral-500">» {i.observacao}</p>}
             </li>
           ))}
-        </ol>
-      )}
-
-      <ul className="space-y-1 rounded border p-3 text-left">
-        {p.itens.map((i, n) => (
-          <li key={n}>
-            <div className="flex justify-between gap-2">
-              <span>{i.quantidade}x {i.nome}</span><span>{brl(i.preco * i.quantidade)}</span>
-            </div>
-            {i.observacao && <p className="text-sm text-gray-500">{i.observacao}</p>}
-          </li>
-        ))}
-        {p.tipo === "entrega" && (
-          <li className="flex justify-between border-t pt-1"><span>Entrega ({p.bairro_nome})</span><span>{brl(p.taxa)}</span></li>
-        )}
-        <li className="flex justify-between font-bold"><span>Total</span><span>{brl(p.total)}</span></li>
-      </ul>
+        </ul>
+        <dl className="mt-3 space-y-1 border-t border-neutral-200 pt-3 text-neutral-600">
+          <div className="flex justify-between"><dt>Subtotal</dt><dd>{brl(p.subtotal)}</dd></div>
+          {p.tipo === "entrega" && <div className="flex justify-between"><dt>Entrega</dt><dd>{brl(p.taxa)}</dd></div>}
+          <div className="flex justify-between text-lg font-bold text-neutral-900"><dt>Total</dt><dd>{brl(p.total)}</dd></div>
+        </dl>
+      </section>
 
       {empresa?.whatsapp && (
         <a href={`https://wa.me/${empresa.whatsapp}?text=${encodeURIComponent(mensagemWhatsApp(p, empresa.nome))}`}
           target="_blank" rel="noopener noreferrer"
-          className="block rounded-lg bg-green-600 p-4 font-semibold text-white">
-          Enviar pedido no WhatsApp
+          className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-lg font-semibold text-white shadow-sm">
+          <MessageCircle className="size-6" /> Enviar no WhatsApp
         </a>
       )}
 
-      <Link href={`/${slug}`} className="block text-sm underline">Voltar ao cardápio</Link>
-    </main>
+      <Link href={`/${slug}`} className="block text-center text-sm font-medium text-neutral-600 underline">Voltar ao cardápio</Link>
+    </>,
   );
 }
