@@ -14,7 +14,7 @@ export type EmpresaPublica = {
 export type CategoriaPublica = { id: string; nome: string };
 export type ItemPublico = {
   id: string; categoria_id: string; nome: string; descricao: string | null;
-  preco: number; foto_url: string | null; disponivel: boolean;
+  preco: number; foto_url: string | null; disponivel: boolean; destaque?: boolean;
 };
 export type BairroPublico = { id: string; nome: string; taxa: number; pedido_minimo: number };
 

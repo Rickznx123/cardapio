@@ -23,6 +23,10 @@
 
   --animate-subir: subir 0.22s ease-out;
   --animate-surgir: surgir 0.18s ease-out;
+  --animate-deslizar: deslizar 0.22s ease-out;
+  @keyframes deslizar {
+    from { transform: translateX(100%); }
+  }
   @keyframes subir {
     from { transform: translateY(100%); }
   }

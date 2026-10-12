@@ -9,10 +9,9 @@ import {
 import { Modal } from "@/components/modal";
 import { toast } from "@/components/toast";
 import { Bairros } from "./bairros";
-import { Categorias } from "./categorias";
+import { EditorCardapio } from "./cardapio/editor";
 import { ConfigImpressao, type Empresa, EmpresaForm } from "./configuracoes";
 import { Equipe } from "./equipe";
-import { Itens } from "./itens";
 import { Mesas } from "./mesas";
 import { Pedidos } from "./pedidos";
 import { QrModal } from "./qr";
@@ -101,9 +100,10 @@ export default function Painel() {
         <Pedidos equipe={{ empresa_id: empresa.id, nome: empresa.nome }} visivel={secao === "Pedidos"} />
 
         {secao !== "Pedidos" && (
-          <main className="mx-auto w-full max-w-3xl p-4 md:p-8">
-            <h1 className="mb-5 text-2xl font-bold">{secao}</h1>
-            {secao === "Cardápio" && <CardapioSecao empresaId={empresa.id} />}
+          <main className={`mx-auto w-full p-4 md:p-8 ${secao === "Cardápio" ? "max-w-4xl" : "max-w-3xl"}`}>
+            {/* No Cardápio o topo (capa + nome editável) já faz o papel de título. */}
+            {secao === "Cardápio" ? <h1 className="sr-only">Cardápio</h1> : <h1 className="mb-5 text-2xl font-bold">{secao}</h1>}
+            {secao === "Cardápio" && <EditorCardapio empresa={empresa} mudou={setEmpresa} />}
             {secao === "Mesas" && <Mesas empresaId={empresa.id} />}
             {secao === "Entrega" && <Bairros empresaId={empresa.id} />}
             {secao === "Equipe" && <Equipe empresaId={empresa.id} />}
@@ -119,23 +119,6 @@ export default function Painel() {
 
       {menu && <Modal titulo={empresa.nome} fechar={() => setMenu(false)}>{menuLateral}</Modal>}
       {qr && <QrModal slug={empresa.slug} nome={empresa.nome} fechar={() => setQr(false)} />}
-    </div>
-  );
-}
-
-function CardapioSecao({ empresaId }: { empresaId: string }) {
-  const [aba, setAba] = useState<"itens" | "categorias">("itens");
-  return (
-    <div className="space-y-4">
-      <div className="inline-flex gap-1 rounded-xl bg-neutral-200/70 p-1 dark:bg-neutral-800" role="tablist">
-        {([["itens", "Itens"], ["categorias", "Categorias"]] as const).map(([a, rotulo]) => (
-          <button key={a} role="tab" aria-selected={a === aba} onClick={() => setAba(a)}
-            className={`h-9 rounded-lg px-5 text-sm font-semibold ${a === aba ? "bg-white shadow-sm dark:bg-neutral-950" : "text-neutral-600 dark:text-neutral-400"}`}>
-            {rotulo}
-          </button>
-        ))}
-      </div>
-      {aba === "itens" ? <Itens empresaId={empresaId} /> : <Categorias empresaId={empresaId} />}
     </div>
   );
 }

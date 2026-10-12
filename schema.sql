@@ -65,6 +65,7 @@ create table itens (
   preco         numeric(10,2) not null check (preco >= 0),
   foto_url      text,
   disponivel    boolean not null default true,      -- false = esgotado
+  destaque      boolean not null default false,     -- máx. 10 por empresa (trigger itens_limite_destaques)
   ordem         integer not null default 0,
   created_at    timestamptz not null default now()
 );
@@ -137,6 +138,29 @@ create table pedido_itens (
   quantidade   integer not null check (quantidade > 0),
   observacao   text
 );
+
+-- ---------- LIMITE DE DESTAQUES ----------
+-- Máx. 10 itens em destaque por empresa. Trava a linha da empresa para duas edições simultâneas
+-- não passarem juntas do limite.
+create or replace function public._limite_destaques()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if new.destaque and (tg_op = 'INSERT' or not old.destaque or old.empresa_id <> new.empresa_id) then
+    perform 1 from empresas where id = new.empresa_id for update;
+    if (select count(*) from itens where empresa_id = new.empresa_id and destaque and id <> new.id) >= 10 then
+      raise exception 'Máximo de 10 itens em destaque';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public._limite_destaques() from public, anon, authenticated;
+
+create trigger itens_limite_destaques
+  before insert or update of destaque, empresa_id on itens
+  for each row execute function public._limite_destaques();
 
 -- ---------- HELPER DE PERMISSÃO ----------
 create or replace function public.e_membro(p_empresa uuid, p_papeis papel_membro[] default null)

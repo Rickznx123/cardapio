@@ -27,6 +27,9 @@ Interface 100% em português (pt-BR), valores em R$.
 - Slug: `^[a-z0-9-]{3,40}$`, sem palavras reservadas (constraint `empresas_slug_valido`; lista espelhada em `lib/slug.ts`).
 - Cancelar pedido só via RPC `cancelar_pedido` (desconta da comanda aberta). Update direto para `cancelado` é barrado pela RLS (with check).
 - Texto vindo de cliente/garçom no cupom sempre passa por escape (`lib/cupom.ts`).
+- Editor do cardápio (`app/painel/cardapio/`) salva sozinho e de forma otimista: atualiza a tela, grava no
+  banco e, se falhar, desfaz só os campos alterados + toast de erro. Produto novo é rascunho local até ter nome e preço.
+- Destaques: máx. 10 por empresa, garantido no banco (trigger); no cardápio só aparecem os disponíveis de categorias visíveis.
 
 ## Áreas / rotas
 | Rota | Quem usa | O quê |
@@ -35,7 +38,7 @@ Interface 100% em português (pt-BR), valores em R$.
 | `/[slug]` | cliente | cardápio: capa, informações, busca, último pedido (repetir), carrinho, checkout com pagamento/troco |
 | `/[slug]/pedido/[id]` | cliente | confirmação via RPC `ver_pedido_publico` (status atualiza a cada 20s) + botão WhatsApp |
 | `/login` | dono/caixa | login por e-mail/senha → `/painel` |
-| `/painel` | dono/caixa | painel unificado (substitui `/admin` e `/balcao`). Seções: Pedidos (abas Balcão/Delivery/Mesas, filtros, novo pedido, pagar, finalizar, comandas), Cardápio, Mesas, Entrega, Equipe, Configurações. Caixa vê só Pedidos. Sidebar: loja aberta/fechada, ver cardápio, QR Code |
+| `/painel` | dono/caixa | painel unificado (substitui `/admin` e `/balcao`). Seções: Pedidos (abas Balcão/Delivery/Mesas, filtros, novo pedido, pagar, finalizar, comandas), Cardápio (editor único "editar no lugar": capa/logo/nome, categorias e itens com arrastar via @dnd-kit, destaques, drawer do item), Mesas, Entrega, Equipe, Configurações. Caixa vê só Pedidos. Sidebar: loja aberta/fechada, ver cardápio, QR Code |
 | `/painel/impressao` | dono/caixa | instruções do atalho do Chrome com `--kiosk-printing` no Windows |
 | `/admin`, `/balcao`, `/balcao/configurar` | — | redirects (next.config) para `/painel` e `/painel/impressao` |
 | `/[slug]/garcom` | garçom | PWA: login nome+PIN; grade de mesas → comanda → adicionar itens (obs. por item) → enviar |
@@ -73,3 +76,4 @@ O garçom escolhe o nome e digita o PIN; `/api/garcom/login` busca o e-mail com 
 - `005_painel.sql`: enums `forma_pagamento`/`origem_pedido`; colunas de pagamento/origem em `pedidos`;
   `capa_url`/`descricao`/`horario_texto` em `empresas`; slug `painel` reservado; `criar_pedido_publico` com
   pagamento; `criar_pedido_balcao`; `fechar_comanda`; `ver_pedido_publico` devolve pagamento
+- `006_destaques.sql`: `itens.destaque` + trigger `itens_limite_destaques` (máx. 10 por empresa)

@@ -26,7 +26,7 @@ async function Conteudo({ params }: { params: Promise<{ slug: string }> }) {
 
   const [categorias, itens, bairros] = await Promise.all([
     supabase.from("categorias").select("id, nome").eq("empresa_id", empresa.id).eq("ativo", true).order("ordem"),
-    supabase.from("itens").select("id, categoria_id, nome, descricao, preco, foto_url, disponivel")
+    supabase.from("itens").select("id, categoria_id, nome, descricao, preco, foto_url, disponivel, destaque")
       .eq("empresa_id", empresa.id).order("ordem"),
     supabase.from("bairros").select("id, nome, taxa, pedido_minimo").eq("empresa_id", empresa.id).eq("ativo", true).order("nome"),
   ]);

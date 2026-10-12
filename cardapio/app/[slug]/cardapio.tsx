@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Bike, Clock, CreditCard, Info, List, MapPin, MessageCircle, RotateCcw, Search, ShoppingBag, Store, X,
+  Bike, Clock, CreditCard, Info, List, MapPin, MessageCircle, RotateCcw, Search, ShoppingBag, Star, Store, X,
 } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { useArmazenado } from "@/lib/armazenado";
@@ -37,6 +37,9 @@ export function Cardapio({ empresa, categorias, itens, bairros }: Props) {
   const subtotal = linhas.reduce((s, l) => s + porId.get(l.item_id)!.preco * l.quantidade, 0);
 
   const comItens = categorias.filter((c) => itens.some((i) => i.categoria_id === c.id));
+  // Destaques: só disponíveis e de categorias visíveis (categorias ocultas não vêm na lista).
+  const visiveisIds = new Set(comItens.map((c) => c.id));
+  const destaques = itens.filter((i) => i.destaque && i.disponivel && visiveisIds.has(i.categoria_id));
   const termo = normalizar(busca?.trim() ?? "");
   const encontrados = termo
     ? itens.filter((i) => normalizar(`${i.nome} ${i.descricao ?? ""}`).includes(termo))
@@ -72,6 +75,29 @@ export function Cardapio({ empresa, categorias, itens, bairros }: Props) {
             <>
               {ultimo && ultimo.linhas?.length > 0 && podePedir && (
                 <UltimoPedidoCard ultimo={ultimo} porId={porId} repetir={repetir} />
+              )}
+              {destaques.length > 0 && (
+                <section className="pt-6" aria-labelledby="destaques-titulo">
+                  <h2 id="destaques-titulo" className="mb-3 flex items-center gap-2 px-4 text-lg font-bold">
+                    <Star className="size-5 fill-amber-400 text-amber-500" /> Destaques
+                  </h2>
+                  <ul className="flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] md:grid md:grid-cols-4 md:overflow-visible">
+                    {destaques.map((i) => (
+                      <li key={i.id} className="w-40 shrink-0 snap-start md:w-auto">
+                        <button onClick={() => setItemAberto(i)}
+                          className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-neutral-200 text-left transition hover:shadow-sm active:scale-[0.99]">
+                          {i.foto_url
+                            ? <img src={i.foto_url} alt="" loading="lazy" className="aspect-square w-full object-cover" />
+                            : <span className="flex aspect-square w-full items-center justify-center bg-(--cor)/10 text-3xl font-bold text-(--cor)">{i.nome[0]}</span>}
+                          <span className="flex flex-1 flex-col p-3">
+                            <span className="line-clamp-2 text-sm font-semibold">{i.nome}</span>
+                            <span className="mt-auto pt-1 font-bold">{brl(i.preco)}</span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               )}
               {comItens.map((c) => (
                 <section key={c.id} id={`c-${c.id}`} data-categoria={c.id} className="scroll-mt-20 px-4 pt-6">
