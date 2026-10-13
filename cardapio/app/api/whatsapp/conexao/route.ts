@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { criarInstancia, desconectar, estado, nomeInstancia, numeroConectado, obterQr } from "@/lib/whatsapp/evolution";
 import { TIPOS } from "@/lib/whatsapp/mensagens";
-import { eDono } from "@/lib/whatsapp/servidor";
+import { eDono, iaDisponivel } from "@/lib/whatsapp/servidor";
 
 const erro = (msg: string, status: number) => NextResponse.json({ erro: msg }, { status });
 const empresaDaUrl = (request: Request) => new URL(request.url).searchParams.get("empresa_id");
@@ -44,9 +44,10 @@ export async function GET(request: Request) {
   const empresa_id = empresaDaUrl(request);
   if (!(await eDono(empresa_id))) return erro("Sem permissão", 403);
   if (!process.env.EVOLUTION_API_URL) return NextResponse.json({ status: null, configurando: true });
+  const json = (corpo: object) => NextResponse.json({ ...corpo, ia_disponivel: iaDisponivel() });
   const admin = createAdminClient();
   const { data: c } = await admin.from("whatsapp_conexoes").select("*").eq("empresa_id", empresa_id!).maybeSingle();
-  if (!c) return NextResponse.json({ status: null });
+  if (!c) return json({ status: null });
 
   if ((await estado(c.instancia)) === "open") {
     if (c.status !== "conectado" || !c.numero) {
@@ -54,13 +55,13 @@ export async function GET(request: Request) {
       await admin.from("whatsapp_conexoes").update({ status: "conectado", numero: c.numero, conectado_em: new Date().toISOString() })
         .eq("empresa_id", empresa_id!);
     }
-    return NextResponse.json({ status: "conectado", numero: c.numero });
+    return json({ status: "conectado", numero: c.numero });
   }
   if (c.status === "aguardando_qr") {
-    return NextResponse.json({ status: "aguardando_qr", qr: await obterQr(c.instancia).catch(() => null) });
+    return json({ status: "aguardando_qr", qr: await obterQr(c.instancia).catch(() => null) });
   }
   if (c.status === "conectado") await admin.from("whatsapp_conexoes").update({ status: "desconectado" }).eq("empresa_id", empresa_id!);
-  return NextResponse.json({ status: "desconectado" });
+  return json({ status: "desconectado" });
 }
 
 export async function DELETE(request: Request) {

@@ -51,6 +51,9 @@ export const CAMPOS_EMPRESA =
   "id, nome, slug, ativo, aberto, endereco, horarios, horario_texto, tempo_entrega_min, tempo_entrega_max, tempo_retirada, aceita_entrega, aceita_retirada, formas_pagamento";
 
 // ---------- IA (OpenAI) ----------
+// Sem OPENAI_API_KEY a IA não existe: o painel mostra "em breve" e o webhook nunca chama a OpenAI.
+export const iaDisponivel = () => !!process.env.OPENAI_API_KEY;
+
 const MODELO = "gpt-4o-mini";
 
 async function openai(caminho: string, init: RequestInit) {

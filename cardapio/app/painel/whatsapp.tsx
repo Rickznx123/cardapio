@@ -12,6 +12,7 @@ import { botao, botaoSec, Campo, card, input, inputNum, ok, rotulo, supabase } f
 type Conexao = {
   status: "desconectado" | "aguardando_qr" | "conectado" | null; numero?: string | null; qr?: string | null;
   configurando?: boolean; // EVOLUTION_API_URL ainda não configurada no server
+  ia_disponivel?: boolean; // OPENAI_API_KEY configurada no server
 };
 type Mensagem = { tipo: TipoMensagem; texto: string; ativo: boolean };
 type Config = { ia_ativa: boolean; pausa_humano_minutos: number; intervalo_saudacao_horas: number };
@@ -37,15 +38,18 @@ export function WhatsApp({ empresa }: { empresa: Empresa }) {
   const [config, setConfig] = useState<Config | null>(null);
   const aguardando = conexao?.status === "aguardando_qr";
   const temConexao = !!conexao?.status;
+  const [iaDisponivel, setIaDisponivel] = useState(false);
+  // Só o GET informa a IA; POST/DELETE trocam a conexão mas não mexem nisso.
+  const receberStatus = (c: Conexao) => { setConexao(c); setIaDisponivel(!!c.ia_disponivel); };
 
   useEffect(() => {
-    chamar("GET", empresa.id).then(setConexao).catch((e) => { toast.erro(e.message); setConexao({ status: null }); });
+    chamar("GET", empresa.id).then(receberStatus).catch((e) => { toast.erro(e.message); setConexao({ status: null }); });
   }, [empresa.id]);
 
   // QR expira: pede status + QR novo a cada 20s até conectar.
   useEffect(() => {
     if (!aguardando) return;
-    const t = setInterval(() => chamar("GET", empresa.id).then(setConexao).catch(() => {}), 20_000);
+    const t = setInterval(() => chamar("GET", empresa.id).then(receberStatus).catch(() => {}), 20_000);
     return () => clearInterval(t);
   }, [aguardando, empresa.id]);
 
@@ -146,17 +150,21 @@ export function WhatsApp({ empresa }: { empresa: Empresa }) {
               <Bot className="size-6" />
             </span>
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-semibold">Ative o Chatbot IA</h2>
+              <h2 className="text-lg font-semibold">{iaDisponivel ? "Ative o Chatbot IA" : "Chatbot IA"}</h2>
               <p className="text-sm text-neutral-600 dark:text-neutral-400">
                 Quando o cliente escreve algo que não é uma opção do menu (ex.: &quot;tem pizza de calabresa?&quot;, &quot;entrega no Centro?&quot;),
                 a IA responde usando seu cardápio, preços, horários, bairros e formas de pagamento. Ela entende áudio, não inventa
                 itens nem preços e não fecha pedidos: sempre manda o link do cardápio.
               </p>
             </div>
-            <button role="switch" aria-checked={config.ia_ativa} aria-label="Chatbot IA" onClick={() => salvarConfig({ ia_ativa: !config.ia_ativa })}
-              className={`flex h-7 w-12 shrink-0 items-center rounded-full p-1 ${config.ia_ativa ? "justify-end bg-emerald-600" : "justify-start bg-neutral-300 dark:bg-neutral-700"}`}>
-              <span className="size-5 rounded-full bg-white shadow" />
-            </button>
+            {iaDisponivel ? (
+              <button role="switch" aria-checked={config.ia_ativa} aria-label="Chatbot IA" onClick={() => salvarConfig({ ia_ativa: !config.ia_ativa })}
+                className={`flex h-7 w-12 shrink-0 items-center rounded-full p-1 ${config.ia_ativa ? "justify-end bg-emerald-600" : "justify-start bg-neutral-300 dark:bg-neutral-700"}`}>
+                <span className="size-5 rounded-full bg-white shadow" />
+              </button>
+            ) : (
+              <span className="shrink-0 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-bold text-violet-700 dark:bg-violet-950 dark:text-violet-300">Em breve</span>
+            )}
           </section>
 
           <section className={`${card} grid gap-4 sm:grid-cols-2`}>

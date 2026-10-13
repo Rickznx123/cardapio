@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { decidir } from "@/lib/whatsapp/decidir";
 import { baixarMidia, numeroConectado } from "@/lib/whatsapp/evolution";
 import { preencher, variaveisEmpresa } from "@/lib/whatsapp/mensagens";
-import { CAMPOS_EMPRESA, enviar, foiDoBot, primeiraVez, responderIA, secretOk, textoAtivo, transcrever } from "@/lib/whatsapp/servidor";
+import { CAMPOS_EMPRESA, enviar, foiDoBot, iaDisponivel, primeiraVez, responderIA, secretOk, textoAtivo, transcrever } from "@/lib/whatsapp/servidor";
 
 type Key = { id: string; remoteJid: string; fromMe: boolean; remoteJidAlt?: string; senderPn?: string };
 type Msg = {
@@ -91,10 +91,12 @@ async function mensagem(admin: SupabaseClient, conexao: Conexao, m: Msg, origem:
   // Empresa desativada ou teste vencido: bot fica quieto.
   if (!empresa || !(await admin.rpc("empresa_liberada", { p_empresa: empresaId })).data) return;
 
+  const iaAtiva = cfg.ia_ativa && iaDisponivel(); // toggle ligado e chave configurada
+  const audio = !!m.message?.audioMessage;
   let texto = m.message?.conversation ?? m.message?.extendedTextMessage?.text ?? m.message?.imageMessage?.caption ?? "";
-  if (!texto && m.message?.audioMessage && cfg.ia_ativa) {
+  if (!texto && audio && iaAtiva) {
     const midia = await baixarMidia(conexao.instancia, m.key);
-    if (midia.base64) texto = await transcrever(midia.base64, midia.mimetype ?? m.message.audioMessage.mimetype);
+    if (midia.base64) texto = await transcrever(midia.base64, midia.mimetype ?? m.message?.audioMessage?.mimetype);
   }
 
   const saudouEm = conversa?.ultima_saudacao ? Date.parse(conversa.ultima_saudacao) : 0;
@@ -104,7 +106,8 @@ async function mensagem(admin: SupabaseClient, conexao: Conexao, m: Msg, origem:
     aberto: empresa.aberto && (!temHorarios(empresa.horarios) || abertoAgora(empresa.horarios, agora)),
     saudouRecente: agora.getTime() - saudouEm < cfg.intervalo_saudacao_horas * 3_600_000,
     texto,
-    iaAtiva: cfg.ia_ativa,
+    iaAtiva,
+    audio,
   };
   let decisao = decidir(situacao);
   let resposta: string | undefined;

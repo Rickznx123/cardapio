@@ -31,3 +31,10 @@ test("IA só quando ativa e com texto que não é opção", () => {
   assert.equal(decidir({ ...base, texto: "  ", iaAtiva: true }), null);
   assert.equal(decidir({ ...base, texto: "quero 2 pizzas", iaAtiva: true }), "ia");
 });
+
+test("áudio sem IA: boas-vindas (menu); com IA segue o texto transcrito", () => {
+  assert.deepEqual(decidir({ ...base, audio: true }), { tipo: "boas_vindas", saudacao: true });
+  assert.equal(decidir({ ...base, audio: true, pausado: true }), null);
+  assert.deepEqual(decidir({ ...base, audio: true, aberto: false, saudouRecente: false }), { tipo: "ausencia", saudacao: true });
+  assert.equal(decidir({ ...base, audio: true, iaAtiva: true, texto: "tem coca?" }), "ia");
+});
