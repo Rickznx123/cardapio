@@ -41,6 +41,7 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   const empresa_id = empresaDaUrl(request);
   if (!(await eDono(empresa_id))) return erro("Sem permissão", 403);
+  if (!process.env.EVOLUTION_API_URL) return NextResponse.json({ status: null, configurando: true });
   const admin = createAdminClient();
   const { data: c } = await admin.from("whatsapp_conexoes").select("*").eq("empresa_id", empresa_id!).maybeSingle();
   if (!c) return NextResponse.json({ status: null });

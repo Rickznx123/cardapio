@@ -9,7 +9,10 @@ import { preencher, TIPOS, type TipoMensagem, VARIAVEIS, type Variaveis, variave
 import type { Empresa } from "./configuracoes";
 import { botao, botaoSec, Campo, card, input, inputNum, ok, rotulo, supabase } from "./ui";
 
-type Conexao = { status: "desconectado" | "aguardando_qr" | "conectado" | null; numero?: string | null; qr?: string | null };
+type Conexao = {
+  status: "desconectado" | "aguardando_qr" | "conectado" | null; numero?: string | null; qr?: string | null;
+  configurando?: boolean; // EVOLUTION_API_URL ainda não configurada no server
+};
 type Mensagem = { tipo: TipoMensagem; texto: string; ativo: boolean };
 type Config = { ia_ativa: boolean; pausa_humano_minutos: number; intervalo_saudacao_horas: number };
 
@@ -74,6 +77,17 @@ export function WhatsApp({ empresa }: { empresa: Empresa }) {
   }
 
   if (conexao === undefined) return <p>Carregando…</p>;
+  if (conexao.configurando) {
+    return (
+      <section className={`${card} flex items-center gap-3`}>
+        <Smartphone className="size-6 shrink-0 text-neutral-500" />
+        <div>
+          <h2 className="text-lg font-semibold">WhatsApp em configuração</h2>
+          <p className="text-sm text-neutral-500">A integração ainda está sendo preparada. Em breve você poderá conectar o número da loja aqui.</p>
+        </div>
+      </section>
+    );
+  }
   const status = conexao.status ?? "desconectado";
 
   return (
