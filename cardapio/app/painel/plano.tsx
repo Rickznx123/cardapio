@@ -6,7 +6,7 @@ import { CircleCheck, CircleDashed, MessageCircle, Sparkles } from "lucide-react
 import { Modal } from "@/components/modal";
 import { temHorarios } from "@/lib/horarios";
 import { linkVendas, PRODUTO, SITE_URL } from "@/lib/marca";
-import { INCLUI, PRECO_MENSAL } from "@/lib/planos";
+import { CONFIGURACAO_INCLUSA, INCLUI, PRECO_MENSAL } from "@/lib/planos";
 import { brl } from "@/lib/tipos";
 import type { Empresa } from "./configuracoes";
 import { supabase } from "./ui";
@@ -51,6 +51,7 @@ export function Assinar({ empresa, fechar }: { empresa: Empresa; fechar: () => v
         <ul className="space-y-1.5 text-sm">
           {INCLUI.map((i) => <li key={i} className="flex gap-2"><CircleCheck className="size-4 shrink-0 text-emerald-600" /> {i}</li>)}
         </ul>
+        <p className="rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{CONFIGURACAO_INCLUSA}.</p>
         <BotaoWhats empresa={empresa} />
       </div>
     </Modal>

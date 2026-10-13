@@ -1,7 +1,9 @@
 // Plano único e situação do teste grátis. Sem imports com "@/": roda no `node --test`.
 
-export const PRECO_MENSAL = 89;
-export const PRECO_SETUP = 250; // opcional: "nós cadastramos tudo pra você"
+export const PRECO_MENSAL = 149.9;
+// Sem taxa de setup: a implantação vem no plano.
+export const CONFIGURACAO_INCLUSA =
+  "Configuração completa inclusa: cadastramos seu cardápio, fotos, QR Codes e instalamos a impressora";
 export const DIAS_TRIAL = 14; // o banco é quem grava (default de empresas.trial_ate)
 export const INCLUI = [
   "Pedidos ilimitados, sem taxa por pedido",
@@ -11,7 +13,7 @@ export const INCLUI = [
   "Impressão automática de cupons",
   "Caixa, histórico e relatórios de vendas",
   "Chatbot e avisos de pedido no WhatsApp",
-  "Suporte pelo WhatsApp",
+  "Suporte direto pelo WhatsApp",
 ];
 
 export type PlanoStatus = "trial" | "ativo" | "vencido" | "cancelado";

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  ArrowRight, BarChart3, Bike, Bot, CircleCheck, ClipboardList, MessageCircle, Printer, QrCode, Smartphone, Store, UtensilsCrossed,
+  ArrowRight, BarChart3, Bike, Bot, CircleCheck, ClipboardList, MessageCircle, Printer, QrCode, Smartphone, Sparkles, Store, UtensilsCrossed,
 } from "lucide-react";
 import { linkVendas, PRODUTO } from "@/lib/marca";
-import { DIAS_TRIAL, INCLUI, PRECO_MENSAL, PRECO_SETUP } from "@/lib/planos";
+import { CONFIGURACAO_INCLUSA, DIAS_TRIAL, INCLUI, PRECO_MENSAL } from "@/lib/planos";
 import { brl } from "@/lib/tipos";
 
 const TITULO = `${PRODUTO}: cardápio digital e pedidos sem taxa por pedido`;
@@ -39,7 +39,8 @@ const RECURSOS = [
 ];
 
 const FAQ = [
-  ["Preciso de impressora?", "Não. Os pedidos aparecem no painel em tempo real, no computador ou no celular. Se quiser imprimir, qualquer impressora térmica de 58 ou 80 mm ligada a um computador funciona."],
+  ["Preciso de impressora?", "Não. Os pedidos aparecem no painel em tempo real, no computador ou no celular. Se quiser imprimir, qualquer impressora térmica de 58 ou 80 mm ligada a um computador funciona, e nós instalamos para você."],
+  ["Preciso cadastrar tudo sozinho?", "Não. A configuração completa está inclusa no plano: cadastramos seu cardápio e as fotos, geramos os QR Codes das mesas e instalamos a impressora. Sem taxa de setup."],
   ["Funciona no celular?", "Sim. O cardápio do cliente, o app do garçom e o painel funcionam no navegador do celular, sem instalar nada."],
   ["Tem fidelidade?", "Não. O plano é mensal e você usa enquanto fizer sentido para o seu negócio."],
   ["Posso cancelar quando quiser?", "Pode. É só avisar pelo WhatsApp; não há multa."],
@@ -130,8 +131,8 @@ export default function Home() {
                 {INCLUI.map((i) => <li key={i} className="flex gap-2"><CircleCheck className="mt-0.5 size-5 shrink-0 text-emerald-600" /> {i}</li>)}
               </ul>
               <Link href="/cadastro" className={`${botaoPrimario} mt-8 w-full`}>{CTA}</Link>
-              <p className="mt-4 rounded-xl bg-neutral-50 p-3 text-sm text-neutral-600">
-                <b>Opcional: {brl(PRECO_SETUP)} uma vez</b> — nós cadastramos tudo pra você (cardápio, fotos, bairros e impressora).
+              <p className="mt-4 flex gap-2 rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-900">
+                <Sparkles className="mt-0.5 size-4 shrink-0 text-emerald-600" /> {CONFIGURACAO_INCLUSA}, sem custo extra.
               </p>
             </div>
             <div className="space-y-4 p-2 md:pt-6">
