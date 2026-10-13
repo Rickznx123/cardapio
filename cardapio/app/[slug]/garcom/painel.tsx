@@ -13,7 +13,7 @@ export type Membro = { id: string; nome: string; empresa_id: string };
 type Mesa = { id: string; numero: number };
 type Comanda = { id: string; mesa_id: string; total: number };
 type ItemComanda = {
-  id: string; nome: string; preco: number; quantidade: number; observacao: string | null;
+  id: string; nome: string; preco: number; quantidade: number; observacao: string | null; ponto_carne: string | null;
   pedidos: { numero: number; status: StatusPedido };
 };
 
@@ -104,7 +104,7 @@ function MesaView({ membro, mesa, comanda, voltar, atualizou }: {
   useEffect(() => {
     if (!comanda) return;
     supabase.from("pedido_itens")
-      .select("id, nome, preco, quantidade, observacao, pedidos!inner(numero, status, comanda_id)")
+      .select("id, nome, preco, quantidade, observacao, ponto_carne, pedidos!inner(numero, status, comanda_id)")
       .eq("pedidos.comanda_id", comanda.id)
       .then(({ data, error }) => {
         if (error) return toast.erro(error.message);
@@ -137,6 +137,7 @@ function MesaView({ membro, mesa, comanda, voltar, atualizou }: {
               <li key={i.id} className={`flex justify-between gap-3 py-3 ${cancelado ? "opacity-50" : ""}`}>
                 <div className="min-w-0">
                   <p className={`text-lg ${cancelado ? "line-through" : ""}`}>{i.quantidade}x {i.nome}</p>
+                  {i.ponto_carne && <p className="font-medium text-rose-700 dark:text-rose-400">Ponto: {i.ponto_carne}</p>}
                   {i.observacao && <p className="font-medium text-rose-700 dark:text-rose-400">» {i.observacao}</p>}
                   <p className="text-xs text-neutral-500">Pedido #{i.pedidos.numero} · {STATUS[i.pedidos.status]}</p>
                 </div>

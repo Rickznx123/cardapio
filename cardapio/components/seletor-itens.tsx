@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { LinhaEditor } from "@/components/linha";
 import { toast } from "@/components/toast";
-import { adicionar, type LinhaCarrinho } from "@/lib/linhas";
+import { adicionar, adicionarCom, type LinhaCarrinho } from "@/lib/linhas";
 import { createClient } from "@/lib/supabase/client";
 import { brl, type CategoriaPublica, type ItemPublico } from "@/lib/tipos";
 
@@ -17,7 +17,7 @@ export function useCardapio(empresaId: string) {
   useEffect(() => {
     Promise.all([
       supabase.from("categorias").select("id, nome").eq("empresa_id", empresaId).eq("ativo", true).order("ordem"),
-      supabase.from("itens").select("id, categoria_id, nome, descricao, preco, foto_url, disponivel")
+      supabase.from("itens").select("id, categoria_id, nome, descricao, preco, foto_url, disponivel, ponto_carne_ativo, ponto_carne_opcoes, ponto_carne_obrigatorio")
         .eq("empresa_id", empresaId).eq("disponivel", true).order("ordem"),
     ]).then(([c, i]) => {
       if (c.error || i.error) return toast.erro((c.error ?? i.error)!.message);
@@ -34,6 +34,7 @@ export function SeletorItens({ categorias, itens, linhas, setLinhas, topo = "top
 }) {
   const [categoria, setCategoria] = useState<string | null>(categorias[0]?.id ?? null);
   const [busca, setBusca] = useState("");
+  const [pontos, setPontos] = useState<Record<string, string>>({});
   const termo = normalizar(busca.trim());
   const visiveis = termo
     ? itens.filter((i) => normalizar(i.nome).includes(termo))
@@ -65,9 +66,23 @@ export function SeletorItens({ categorias, itens, linhas, setLinhas, topo = "top
         {visiveis.map((i) => {
           const doItem = linhas.filter((l) => l.item_id === i.id);
           const n = doItem.reduce((s, l) => s + l.quantidade, 0);
+          const opcoesPonto = i.ponto_carne_opcoes ?? [];
+          const pontoEscolhido = pontos[i.id] ?? "";
+          const adicionarItem = () => setLinhas(adicionarCom(linhas, i.id, 1, "", pontoEscolhido || null));
           return (
             <li key={i.id} className="py-1">
-              <button type="button" onClick={() => setLinhas(adicionar(linhas, i.id))}
+              {i.ponto_carne_ativo && (
+                <label className="mb-1 block">
+                  <span className="sr-only">Ponto da carne para {i.nome}</span>
+                  <select value={pontoEscolhido} onChange={(e) => setPontos((p) => ({ ...p, [i.id]: e.target.value }))}
+                    className="h-10 w-full rounded-lg border border-neutral-300 bg-transparent px-3 text-sm dark:border-neutral-700 dark:bg-neutral-900">
+                    <option value="">{i.ponto_carne_obrigatorio ? "Selecione o ponto da carne" : "Sem preferência de ponto"}</option>
+                    {opcoesPonto.map((opcao) => <option key={opcao} value={opcao}>{opcao}</option>)}
+                  </select>
+                </label>
+              )}
+              <button type="button" onClick={i.ponto_carne_ativo ? adicionarItem : () => setLinhas(adicionar(linhas, i.id))}
+                disabled={Boolean(i.ponto_carne_ativo && i.ponto_carne_obrigatorio && !pontoEscolhido)}
                 className="flex min-h-16 w-full items-center gap-3 py-2 text-left active:bg-neutral-100 dark:active:bg-neutral-800">
                 <span className="min-w-0 flex-1">
                   <span className="block text-lg font-medium">{i.nome}</span>

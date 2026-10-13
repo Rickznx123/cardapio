@@ -12,6 +12,7 @@ export function DetalhePedido({ p }: { p: PedidoBalcao }) {
         {p.pedido_itens.map((i, n) => (
           <li key={n}>
             <div className={linha}><span><b>{i.quantidade}x</b> {i.nome}</span><span>{brl(i.preco * i.quantidade)}</span></div>
+            {i.ponto_carne && <p className="rounded bg-rose-100 px-2 py-0.5 text-sm font-semibold text-rose-900">Ponto: {i.ponto_carne}</p>}
             {i.observacao && <p className="rounded bg-yellow-100 px-2 py-0.5 text-sm font-semibold text-yellow-900">» {i.observacao}</p>}
           </li>
         ))}

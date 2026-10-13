@@ -4,11 +4,12 @@ export type Categoria = { id: string; nome: string; ordem: number; ativo: boolea
 export type ItemEd = {
   id: string; categoria_id: string; nome: string; descricao: string | null; preco: number;
   foto_url: string | null; disponivel: boolean; destaque: boolean; ordem: number;
+  ponto_carne_ativo: boolean; ponto_carne_opcoes: string[]; ponto_carne_obrigatorio: boolean;
   rascunho?: boolean; // linha nova ainda não salva (id "tmp-…")
   k?: string;         // chave React estável: mantém a linha montada quando o rascunho ganha id real
 };
 
-export const COLUNAS_ITEM = "id, categoria_id, nome, descricao, preco, foto_url, disponivel, destaque, ordem";
+export const COLUNAS_ITEM = "id, categoria_id, nome, descricao, preco, foto_url, disponivel, destaque, ordem, ponto_carne_ativo, ponto_carne_opcoes, ponto_carne_obrigatorio";
 export const MAX_DESTAQUES = 10;
 
 // Ações do editor, passadas para categorias, linhas e drawer.

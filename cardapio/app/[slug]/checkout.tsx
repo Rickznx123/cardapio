@@ -241,6 +241,7 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
                     return (
                       <li key={l.id}>
                         <div className="flex justify-between gap-2"><span>{l.quantidade}x {i.nome}</span><span>{brl(i.preco * l.quantidade)}</span></div>
+                        {l.ponto_carne && <p className="font-medium text-rose-700">Ponto: {l.ponto_carne}</p>}
                         {l.observacao.trim() && <p className="text-neutral-500">» {l.observacao}</p>}
                       </li>
                     );

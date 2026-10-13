@@ -50,7 +50,7 @@ export function Cardapio({ empresa, categorias, itens, bairros }: Props) {
   function repetir() {
     let novo = linhas;
     for (const l of ultimo?.linhas ?? []) {
-      if (porId.has(l.item_id)) novo = adicionarCom(novo, l.item_id, l.quantidade, l.observacao);
+      if (porId.has(l.item_id)) novo = adicionarCom(novo, l.item_id, l.quantidade, l.observacao, l.ponto_carne ?? null);
     }
     setLinhas(novo);
     if (novo.length) { setAberto(true); scrollTo(0, 0); }
@@ -130,7 +130,7 @@ export function Cardapio({ empresa, categorias, itens, bairros }: Props) {
 
       {itemAberto && (
         <ItemSheet key={itemAberto.id} item={itemAberto} podePedir={podePedir} fechar={() => setItemAberto(null)}
-          adicionar={(q, obs) => setLinhas(adicionarCom(linhas, itemAberto.id, q, obs))} />
+          adicionar={(q, obs, ponto) => setLinhas(adicionarCom(linhas, itemAberto.id, q, obs, ponto))} />
       )}
       {info && <InfoModal empresa={empresa} bairros={bairros} fechar={() => setInfo(false)} />}
     </div>

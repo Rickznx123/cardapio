@@ -1,7 +1,7 @@
 "use client";
 
 import { Minus, Plus, Trash2 } from "lucide-react";
-import { type LinhaCarrinho, mudarObs, mudarQtd, novaLinha } from "@/lib/linhas";
+import { type LinhaCarrinho, mudarObs, mudarQtd, novaLinhaComPonto } from "@/lib/linhas";
 import { brl } from "@/lib/tipos";
 
 // Uma linha do carrinho: −/+, observação e "+ adicionar com outra observação". Botões de 48px (uma mão).
@@ -15,6 +15,7 @@ export function LinhaEditor({ linha, linhas, setLinhas, nome, preco }: {
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           {nome && <p className="truncate font-medium">{nome}</p>}
+          {linha.ponto_carne && <p className="text-sm font-medium text-rose-700 dark:text-rose-400">Ponto: {linha.ponto_carne}</p>}
           <p className="text-sm text-neutral-500 dark:text-neutral-400">{brl(preco * linha.quantidade)}</p>
         </div>
         <div className="flex items-center rounded-full border border-neutral-300 dark:border-neutral-700">
@@ -33,7 +34,7 @@ export function LinhaEditor({ linha, linhas, setLinhas, nome, preco }: {
       <input value={linha.observacao} placeholder="Observação (ex.: sem cebola)" aria-label="Observação"
         onChange={(e) => setLinhas(mudarObs(linhas, linha.id, e.target.value))} maxLength={140}
         className="h-11 w-full rounded-xl border border-neutral-300 bg-transparent px-3 text-base dark:border-neutral-700" />
-      <button type="button" onClick={() => setLinhas(novaLinha(linhas, linha.item_id))}
+      <button type="button" onClick={() => setLinhas(novaLinhaComPonto(linhas, linha))}
         className="text-sm font-medium text-neutral-600 underline underline-offset-2 dark:text-neutral-300">
         + adicionar com outra observação
       </button>

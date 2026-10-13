@@ -23,6 +23,7 @@ function mensagemWhatsApp(p: PedidoPublico, empresa: string) {
     "",
     ...p.itens.flatMap((i) => [
       `${i.quantidade}x ${i.nome} — ${brl(i.preco * i.quantidade)}`,
+      ...(i.ponto_carne ? [`   Ponto: ${i.ponto_carne}`] : []),
       ...(i.observacao ? [`   _${i.observacao}_`] : []),
     ]),
     "",
@@ -124,6 +125,7 @@ export function Pedido() {
           {p.itens.map((i, n) => (
             <li key={n}>
               <div className="flex justify-between gap-2"><span>{i.quantidade}x {i.nome}</span><span>{brl(i.preco * i.quantidade)}</span></div>
+              {i.ponto_carne && <p className="text-sm font-medium text-rose-700">Ponto: {i.ponto_carne}</p>}
               {i.observacao && <p className="text-sm text-neutral-500">» {i.observacao}</p>}
             </li>
           ))}

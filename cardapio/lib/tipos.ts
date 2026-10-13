@@ -31,6 +31,7 @@ export type CategoriaPublica = { id: string; nome: string };
 export type ItemPublico = {
   id: string; categoria_id: string; nome: string; descricao: string | null;
   preco: number; foto_url: string | null; disponivel: boolean; destaque?: boolean;
+  ponto_carne_ativo?: boolean; ponto_carne_opcoes?: string[]; ponto_carne_obrigatorio?: boolean;
 };
 export type BairroPublico = { id: string; nome: string; taxa: number; pedido_minimo: number };
 
@@ -44,5 +45,5 @@ export type PedidoPublico = {
   taxa: number; subtotal: number; total: number; created_at: string;
   forma_pagamento: FormaPagamento | null; troco_para: number | null; pago: boolean;
   desconto: number; cupom: string | null;
-  itens: { nome: string; preco: number; quantidade: number; observacao: string | null }[];
+  itens: { nome: string; preco: number; quantidade: number; observacao: string | null; ponto_carne?: string | null }[];
 };

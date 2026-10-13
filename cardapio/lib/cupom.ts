@@ -8,14 +8,14 @@ export type PedidoBalcao = {
   forma_pagamento: FormaPagamento | null; troco_para: number | null; pago: boolean; pago_em: string | null;
   desconto: number; cupom_id: string | null; cupons: { codigo: string } | null;
   origem: "web" | "garcom" | "balcao";
-  pedido_itens: { nome: string; preco: number; quantidade: number; observacao: string | null }[];
+  pedido_itens: { nome: string; preco: number; quantidade: number; observacao: string | null; ponto_carne?: string | null }[];
   comandas: { mesas: { numero: number } | null } | null;
   membros: { nome: string } | null;
 };
 
 export const SELECT_PEDIDO =
   "id, numero, tipo, status, cliente_nome, cliente_telefone, endereco, bairro_nome, taxa_entrega, subtotal, total, " +
-  "observacao, impresso_em, created_at, comanda_id, forma_pagamento, troco_para, pago, pago_em, origem, desconto, cupom_id, cupons(codigo), pedido_itens(nome, preco, quantidade, observacao), " +
+  "observacao, impresso_em, created_at, comanda_id, forma_pagamento, troco_para, pago, pago_em, origem, desconto, cupom_id, cupons(codigo), pedido_itens(nome, preco, quantidade, observacao, ponto_carne), " +
   "comandas(mesas(numero)), membros(nome)";
 
 export const ORIGEM: Record<PedidoBalcao["origem"], string> = { web: "WEB", garcom: "GARÇOM", balcao: "BALCÃO" };
@@ -59,6 +59,7 @@ function itens(p: PedidoBalcao, semPrecos = false) {
     .map((i) => (semPrecos
       ? `<p class="t">${i.quantidade}x ${esc(i.nome)}</p>`
       : linha(`${i.quantidade}x ${esc(i.nome)}`, brl(i.preco * i.quantidade))) +
+      (i.ponto_carne ? `<div class="obs">PONTO: ${esc(i.ponto_carne)}</div>` : "") +
       (i.observacao ? `<div class="obs">» ${esc(i.observacao)}</div>` : ""))
     .join("");
 }

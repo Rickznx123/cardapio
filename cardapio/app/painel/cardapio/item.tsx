@@ -181,6 +181,41 @@ export function DrawerItem({ item: i, categorias, ops, enviandoFoto, fechar }: {
               {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </select>
           </label>
+          <section className="space-y-3 rounded-xl bg-neutral-100 p-3 dark:bg-neutral-800">
+            <label className="flex min-h-11 items-center justify-between gap-3">
+              <span className="text-sm font-medium">Perguntar ponto da carne</span>
+              <input type="checkbox" role="switch" checked={i.ponto_carne_ativo}
+                onChange={(e) => ops.atualizarItem(i.id, { ponto_carne_ativo: e.target.checked,
+                  ...(!i.ponto_carne_opcoes.length ? { ponto_carne_opcoes: ["Mal passado", "Ao ponto", "Bem passado"] } : {}),
+                })}
+                className="size-5 accent-rose-600" />
+            </label>
+            {i.ponto_carne_ativo && (
+              <>
+                <label className="block"><span className={rotulo}>Opções (uma por linha)</span>
+                  <textarea key={i.ponto_carne_opcoes.join("\n")} defaultValue={i.ponto_carne_opcoes.join("\n")} rows={4}
+                    maxLength={500} aria-label="Opções de ponto da carne, uma por linha"
+                    onBlur={(e) => {
+                      const opcoes = [...new Set(e.target.value.split("\n").map((o) => o.trim()).filter(Boolean))];
+                      if (!opcoes.length || opcoes.length > 10) {
+                        e.target.value = i.ponto_carne_opcoes.join("\n");
+                        return toast.erro("Informe de 1 a 10 opções de ponto da carne");
+                      }
+                      if (JSON.stringify(opcoes) !== JSON.stringify(i.ponto_carne_opcoes)) {
+                        ops.atualizarItem(i.id, { ponto_carne_opcoes: opcoes });
+                      }
+                    }}
+                    className={`${campo} py-2`} />
+                </label>
+                <label className="flex min-h-11 items-center justify-between gap-3">
+                  <span className="text-sm font-medium">Escolha obrigatória</span>
+                  <input type="checkbox" role="switch" checked={i.ponto_carne_obrigatorio}
+                    onChange={(e) => ops.atualizarItem(i.id, { ponto_carne_obrigatorio: e.target.checked })}
+                    className="size-5 accent-rose-600" />
+                </label>
+              </>
+            )}
+          </section>
           <div className="flex items-center justify-between gap-3 rounded-xl bg-neutral-100 p-3 dark:bg-neutral-800">
             <span className="text-sm font-medium">Situação</span><Disponivel item={i} ops={ops} />
           </div>

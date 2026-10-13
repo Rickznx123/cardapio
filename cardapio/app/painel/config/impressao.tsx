@@ -22,8 +22,8 @@ const exemplo = (): PedidoBalcao => ({
   impresso_em: null, created_at: new Date().toISOString(), comanda_id: null,
   forma_pagamento: "dinheiro", troco_para: 100, pago: false, pago_em: null,
   pedido_itens: [
-    { nome: "X-Burger", preco: 24.9, quantidade: 2, observacao: "sem cebola" },
-    { nome: "Refrigerante lata", preco: 5, quantidade: 1, observacao: null },
+    { nome: "X-Burger", preco: 24.9, quantidade: 2, observacao: "sem cebola", ponto_carne: "Ao ponto" },
+    { nome: "Refrigerante lata", preco: 5, quantidade: 1, observacao: null, ponto_carne: null },
   ],
   comandas: null, membros: null,
 });

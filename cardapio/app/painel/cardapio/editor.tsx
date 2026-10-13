@@ -116,6 +116,8 @@ export function EditorCardapio({ empresa, mudou }: { empresa: Empresa; mudou: (e
     setItens((l) => [...l, {
       id, k: id, categoria_id: categoriaId, nome: "", descricao: null, preco: 0, foto_url: null,
       disponivel: true, destaque: false, ordem: 9999, rascunho: true,
+      ponto_carne_ativo: false, ponto_carne_opcoes: ["Mal passado", "Ao ponto", "Bem passado"],
+      ponto_carne_obrigatorio: false,
     }]);
   }
 
@@ -124,6 +126,8 @@ export function EditorCardapio({ empresa, mudou }: { empresa: Empresa; mudou: (e
     const { data, error } = await supabase.from("itens").insert({
       empresa_id: empresa.id, categoria_id: item.categoria_id, nome: `${item.nome} (cópia)`, descricao: item.descricao,
       preco: item.preco, foto_url: item.foto_url, disponivel: item.disponivel, ordem,
+      ponto_carne_ativo: item.ponto_carne_ativo, ponto_carne_opcoes: item.ponto_carne_opcoes,
+      ponto_carne_obrigatorio: item.ponto_carne_obrigatorio,
     }).select(COLUNAS_ITEM).single();
     if (error) return toast.erro(error.message);
     setItens((l) => [...l, data as ItemEd]);

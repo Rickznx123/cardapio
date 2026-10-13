@@ -7,11 +7,13 @@ import { brl, type ItemPublico } from "@/lib/tipos";
 // Bottom sheet do item: foto grande, observação, quantidade, adicionar.
 export function ItemSheet({ item, podePedir, adicionar, fechar }: {
   item: ItemPublico; podePedir: boolean;
-  adicionar: (quantidade: number, observacao: string) => void; fechar: () => void;
+  adicionar: (quantidade: number, observacao: string, pontoCarne: string | null) => void; fechar: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [qtd, setQtd] = useState(1);
   const [obs, setObs] = useState("");
+  const [pontoCarne, setPontoCarne] = useState("");
+  const opcoesPonto = item.ponto_carne_opcoes ?? [];
 
   useEffect(() => {
     ref.current?.showModal();
@@ -39,12 +41,37 @@ export function ItemSheet({ item, podePedir, adicionar, fechar }: {
           {item.descricao && <p className="text-neutral-600">{item.descricao}</p>}
           <p className="text-lg font-bold">{brl(item.preco)}</p>
           {podePedir && (
+            <>
+            {item.ponto_carne_ativo && (
+              <fieldset>
+                <legend className="mb-1 text-sm font-medium">
+                  Ponto da carne{item.ponto_carne_obrigatorio ? " (obrigatório)" : " (opcional)"}
+                </legend>
+                <div className="grid gap-2">
+                  {!item.ponto_carne_obrigatorio && (
+                    <label className="flex min-h-11 items-center gap-2 rounded-xl border border-neutral-300 px-3">
+                      <input type="radio" name={`ponto-${item.id}`} value="" checked={!pontoCarne}
+                        onChange={() => setPontoCarne("")} />
+                      Sem preferência
+                    </label>
+                  )}
+                  {opcoesPonto.map((opcao) => (
+                    <label key={opcao} className="flex min-h-11 items-center gap-2 rounded-xl border border-neutral-300 px-3">
+                      <input type="radio" name={`ponto-${item.id}`} value={opcao} checked={pontoCarne === opcao}
+                        onChange={() => setPontoCarne(opcao)} />
+                      {opcao}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
             <label className="block">
               <span className="mb-1 block text-sm font-medium">Alguma observação?</span>
               <textarea value={obs} onChange={(e) => setObs(e.target.value)} maxLength={140} rows={2}
                 placeholder="Ex.: sem cebola, molho à parte…"
                 className="w-full rounded-xl border border-neutral-300 p-3 text-base outline-none focus:border-(--cor) focus:ring-2 focus:ring-(--cor)/30" />
             </label>
+            </>
           )}
         </div>
 
@@ -62,7 +89,8 @@ export function ItemSheet({ item, podePedir, adicionar, fechar }: {
                   <Plus className="size-5" />
                 </button>
               </div>
-              <button onClick={() => { adicionar(qtd, obs); ref.current?.close(); }}
+              <button disabled={Boolean(item.ponto_carne_ativo && item.ponto_carne_obrigatorio && !pontoCarne)}
+                onClick={() => { adicionar(qtd, obs, pontoCarne || null); ref.current?.close(); }}
                 className="flex h-12 flex-1 items-center justify-between rounded-full bg-(--cor) px-5 font-semibold text-(--cor-texto)">
                 <span>Adicionar</span>
                 <span>{brl(item.preco * qtd)}</span>

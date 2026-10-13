@@ -8,6 +8,7 @@ import { CAMPOS_EMPRESA, enviar, primeiraVez, secretOk, textoAtivo } from "@/lib
 
 type Pedido = { id: string; empresa_id: string; status: StatusPedido; tipo: string; origem: string; cliente_telefone: string | null };
 type Payload = { type: "INSERT" | "UPDATE" | "DELETE"; record: Pedido | null; old_record: Pedido | null };
+type ItemPedido = { nome: string; quantidade: number; ponto_carne: string | null; observacao: string | null };
 
 // Aviso a mandar para a mudança de status (só web/balcão com telefone; mesa nunca).
 function avisoDe({ type, record: p, old_record: antes }: Payload): TipoMensagem | null {
@@ -39,12 +40,18 @@ export async function POST(request: Request) {
       if (!texto || !(await primeiraVez(admin, `pedido:${id}:${status}`))) return;
       // Relê o pedido: no INSERT o total ainda é 0 (as RPCs gravam o total logo depois).
       const [{ data: p }, { data: empresa }] = await Promise.all([
-        admin.from("pedidos").select("id, numero, total, cliente_nome, cliente_telefone").eq("id", id).single(),
+        admin.from("pedidos").select("id, numero, total, cliente_nome, cliente_telefone, pedido_itens(nome, quantidade, ponto_carne, observacao)").eq("id", id).single(),
         admin.from("empresas").select(CAMPOS_EMPRESA).eq("id", empresa_id).single(),
       ]);
       if (!p || !empresa || !(await admin.rpc("empresa_liberada", { p_empresa: empresa_id })).data) return;
       const vars = { ...variaveisEmpresa(empresa, origem), ...variaveisPedido(p, empresa.slug, origem) };
-      await enviar(admin, conexao.instancia, numeroWhats(p.cliente_telefone)!, preencher(texto, vars));
+      const resumoItens = tipo === "pedido_recebido"
+        ? (p.pedido_itens as ItemPedido[]).map((i) =>
+          `${i.quantidade}x ${i.nome}${i.ponto_carne ? ` (ponto: ${i.ponto_carne})` : ""}${i.observacao ? ` — ${i.observacao}` : ""}`,
+        ).join("\n")
+        : "";
+      const mensagem = preencher(texto, vars) + (resumoItens ? `\n\nItens:\n${resumoItens}` : "");
+      await enviar(admin, conexao.instancia, numeroWhats(p.cliente_telefone)!, mensagem);
     } catch (e) {
       console.error("whatsapp pedido:", e);
       Sentry.captureException(e, { tags: { rota: "whatsapp-pedido" } });
