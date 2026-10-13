@@ -40,7 +40,7 @@ Interface 100% em português (pt-BR), valores em R$.
 - Horários (`empresas.horarios`): `{dia: [{abre, fecha}]}`, até 3 turnos, `fecha <= abre` = termina no dia seguinte; lista vazia = fechado.
   Utilitários em `lib/horarios.ts` (fuso `America/Cuiaba`): `abertoAgora` (conta a madrugada do turno de ontem), dia operacional.
   Informativo: não abre/fecha a loja; o bot do WhatsApp responde "ausência" fora do horário.
-- Dia operacional: termina às `empresas.virada_dia` (default 05:00). "Hoje" dos Pedidos e Relatórios (`p_virada`) usam isso.
+- Dia operacional: termina às `empresas.virada_dia` (default 05:00). "Hoje" dos Pedidos, Histórico e Relatórios (`p_virada`) usam isso.
 - Status `saiu` (saiu para entrega) só em pedidos de entrega, entre `pronto` e `entregue`.
 - Pagar sem caixa aberto é barrado no banco (trigger `pedidos_caixa`), inclusive via `fechar_comanda`.
 

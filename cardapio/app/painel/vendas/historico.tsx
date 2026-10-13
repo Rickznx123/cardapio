@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Printer, Search } from "lucide-react";
 import { Drawer } from "@/components/drawer";
 import { toast } from "@/components/toast";
 import { type ConfigImpressao, cuponsPedido, ORIGEM, type PedidoBalcao, SELECT_PEDIDO } from "@/lib/cupom";
+import { diaOperacional, inicioDiaOperacional, somaDias } from "@/lib/horarios";
 import { imprimir } from "@/lib/impressao";
 import { createClient } from "@/lib/supabase/client";
 import { brl, FORMAS, STATUS, type StatusPedido, TODAS_FORMAS } from "@/lib/tipos";
@@ -13,17 +14,16 @@ import { card } from "../ui";
 
 const supabase = createClient();
 const POR_PAGINA = 25;
-const hojeISO = () => new Date().toLocaleDateString("en-CA"); // AAAA-MM-DD no fuso local
-// Data local (AAAA-MM-DD) → instante do começo do dia local.
-const inicioDia = (d: string) => new Date(`${d}T00:00:00`).toISOString();
-const fimDia = (d: string) => { const x = new Date(`${d}T00:00:00`); x.setDate(x.getDate() + 1); return x.toISOString(); };
 const TIPOS = { retirada: "Balcão", entrega: "Delivery", mesa: "Mesa" } as const;
 const sel = "h-10 rounded-lg border border-neutral-300 bg-white px-2 text-sm dark:border-neutral-700 dark:bg-neutral-900";
 
 type Filtros = { de: string; ate: string; status: string; tipo: string; origem: string; forma: string; pago: string; busca: string };
 
-export function Historico({ empresaId, empresaNome, config }: { empresaId: string; empresaNome: string; config: ConfigImpressao | null }) {
-  const [filtros, setFiltros] = useState<Filtros>(() => ({ de: hojeISO(), ate: hojeISO(), status: "", tipo: "", origem: "", forma: "", pago: "", busca: "" }));
+// Datas do filtro são dias de trabalho: começam às `virada` (ex.: 05:00) no fuso da loja, como no Relatório.
+export function Historico({ empresaId, empresaNome, config, virada }: {
+  empresaId: string; empresaNome: string; config: ConfigImpressao | null; virada: string;
+}) {
+  const [filtros, setFiltros] = useState<Filtros>(() => ({ de: diaOperacional(new Date(), virada), ate: diaOperacional(new Date(), virada), status: "", tipo: "", origem: "", forma: "", pago: "", busca: "" }));
   const [busca, setBusca] = useState("");
   const [pagina, setPagina] = useState(0);
   const [dados, setDados] = useState<{ lista: PedidoBalcao[]; total: number } | null>(null);
@@ -33,8 +33,8 @@ export function Historico({ empresaId, empresaNome, config }: { empresaId: strin
 
   useEffect(() => {
     let q = supabase.from("pedidos").select(SELECT_PEDIDO, { count: "exact" }).eq("empresa_id", empresaId);
-    if (filtros.de) q = q.gte("created_at", inicioDia(filtros.de));
-    if (filtros.ate) q = q.lt("created_at", fimDia(filtros.ate));
+    if (filtros.de) q = q.gte("created_at", inicioDiaOperacional(filtros.de, virada).toISOString());
+    if (filtros.ate) q = q.lt("created_at", inicioDiaOperacional(somaDias(filtros.ate, 1), virada).toISOString());
     if (filtros.status) q = q.eq("status", filtros.status);
     if (filtros.tipo) q = q.eq("tipo", filtros.tipo);
     if (filtros.origem) q = q.eq("origem", filtros.origem);
@@ -46,7 +46,7 @@ export function Historico({ empresaId, empresaNome, config }: { empresaId: strin
     else if (termo) q = q.ilike("cliente_nome", `%${termo.replace(/[%_]/g, "")}%`);
     q.order("created_at", { ascending: false }).range(pagina * POR_PAGINA, pagina * POR_PAGINA + POR_PAGINA - 1)
       .then(({ data, count, error }) => (error ? toast.erro(error.message) : setDados({ lista: data as unknown as PedidoBalcao[], total: count ?? 0 })));
-  }, [empresaId, filtros, pagina]);
+  }, [empresaId, filtros, pagina, virada]);
 
   const ultima = dados ? Math.max(0, Math.ceil(dados.total / POR_PAGINA) - 1) : 0;
 

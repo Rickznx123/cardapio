@@ -143,7 +143,7 @@ export default function Painel() {
           <main className={`mx-auto w-full p-4 md:p-8 ${largo ? "max-w-5xl" : "max-w-3xl"}`}>
             {/* No Cardápio o topo (capa + nome editável) já faz o papel de título. */}
             <h1 className={atual.id === "cardapio" ? "sr-only" : "mb-5 text-2xl font-bold"}>{atual.nome}</h1>
-            {atual.id === "historico" && <Historico empresaId={empresa.id} empresaNome={empresa.nome} config={config} />}
+            {atual.id === "historico" && <Historico empresaId={empresa.id} empresaNome={empresa.nome} config={config} virada={virada} />}
             {atual.id === "caixas" && <Caixas empresaId={empresa.id} empresaNome={empresa.nome} formas={formas} config={config} />}
             {atual.id === "relatorios" && <Relatorios empresaId={empresa.id} virada={virada} />}
             {atual.id === "cardapio" && <EditorCardapio {...props} />}
