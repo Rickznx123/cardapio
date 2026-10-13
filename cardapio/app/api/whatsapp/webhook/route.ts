@@ -1,4 +1,5 @@
 import { after, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { abertoAgora, temHorarios } from "@/lib/horarios";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -23,7 +24,11 @@ export async function POST(request: Request) {
   const corpo = await request.json().catch(() => null);
   if (!corpo?.instance) return NextResponse.json({ ok: true });
   const origem = new URL(request.url).origin;
-  after(() => processar(corpo, origem).catch((e) => console.error("whatsapp webhook:", e)));
+  // Roda depois da resposta: erro aqui não chega ao onRequestError, por isso o captureException.
+  after(() => processar(corpo, origem).catch((e) => {
+    console.error("whatsapp webhook:", e);
+    Sentry.captureException(e, { tags: { rota: "whatsapp-webhook" } });
+  }));
   return NextResponse.json({ ok: true });
 }
 

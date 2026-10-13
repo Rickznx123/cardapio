@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { after, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { numeroWhats } from "@/lib/telefone";
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
       await enviar(admin, conexao.instancia, numeroWhats(p.cliente_telefone)!, preencher(texto, vars));
     } catch (e) {
       console.error("whatsapp pedido:", e);
+      Sentry.captureException(e, { tags: { rota: "whatsapp-pedido" } });
     }
   });
   return NextResponse.json({ ok: true });

@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 import { TelaErro } from "@/components/tela-erro";
 
 export default function Erro({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
-  useEffect(() => console.error(error), [error]);
+  useEffect(() => { Sentry.captureException(error); }, [error]);
   return (
     <TelaErro codigo="ERRO" titulo="Algo deu errado"
       texto="Tivemos um problema ao carregar esta página. Tente de novo em instantes.">

@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { criarInstancia, desconectar, estado, nomeInstancia, numeroConectado, obterQr } from "@/lib/whatsapp/evolution";
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
     const qr = await criarInstancia(instancia, webhook).catch(() => obterQr(instancia));
     return NextResponse.json({ status: "aguardando_qr", qr });
   } catch (e) {
+    Sentry.captureException(e, { tags: { rota: "whatsapp-conexao" } }); // Evolution fora do ar / chave errada
     await admin.from("whatsapp_conexoes").update({ status: "desconectado" }).eq("empresa_id", empresa_id);
     return erro(`Não foi possível falar com o servidor do WhatsApp. ${(e as Error).message}`, 502);
   }

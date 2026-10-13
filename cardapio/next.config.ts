@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 const nextConfig: NextConfig = {
   // /admin e /balcao viraram o /painel unificado; mantém links e atalhos antigos funcionando.
@@ -22,4 +23,13 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Source maps só sobem para o Sentry com SENTRY_AUTH_TOKEN (+ SENTRY_ORG e SENTRY_PROJECT) no ambiente de build.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+  widenClientFileUpload: true,
+  silent: !process.env.CI,
+  telemetry: false,
+});
