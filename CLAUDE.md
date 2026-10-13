@@ -41,7 +41,7 @@ Interface 100% em português (pt-BR), valores em R$.
   Utilitários em `lib/horarios.ts` (fuso `America/Cuiaba`): `abertoAgora` (conta a madrugada do turno de ontem), dia operacional.
   Informativo: não abre/fecha a loja; o bot do WhatsApp responde "ausência" fora do horário.
 - Dia operacional: termina às `empresas.virada_dia` (default 05:00). "Hoje" dos Pedidos, Histórico e Relatórios (`p_virada`) usam isso.
-- Plano: `empresas.plano_status` (trial/ativo/vencido/cancelado) + `trial_ate` (default now + 14 dias). `empresa_liberada(id)` =
+- Plano: `empresas.plano_status` (trial/ativo/vencido/cancelado) + `trial_ate` (default now + 3 dias). `empresa_liberada(id)` =
   ativo e (plano ativo ou trial no prazo): usada no cardápio público, bot, login do garçom, `listar_garcons` e no trigger
   `pedidos_empresa_liberada` (barra qualquer pedido novo). Painel: faixa do trial + "Assinar" (WhatsApp, cobrança manual); vencido = tela de teste encerrado.
 - Empresa inativa: cardápio mostra "indisponível" (checagem server com service role) e o painel bloqueia com aviso.
@@ -126,3 +126,4 @@ O garçom escolhe o nome e digita o PIN; `/api/garcom/login` busca o e-mail com 
   `superadmin_empresas` devolve plano
 - `012_clientes.sql`: clientes e backfill; cupons e desconto em pedidos/RPCs/relatórios; configuração, envios e métricas do recuperador.
   Ativar `pg_cron` e `pg_net` e agendar `POST /api/recuperador/processar?secret=CRON_SECRET` a cada 10 min; criar `CRON_SECRET` no Vercel.
+- `013_trial_3_dias.sql`: altera o default futuro de `empresas.trial_ate` para 3 dias; não altera empresas existentes.

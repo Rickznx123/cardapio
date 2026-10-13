@@ -47,7 +47,7 @@ create table empresas (
   virada_dia       time not null default '05:00',      -- fim do dia de trabalho (pedido 01:00 conta no dia anterior)
   plano_status     text not null default 'trial'
                    constraint empresas_plano_status check (plano_status in ('trial', 'ativo', 'vencido', 'cancelado')),
-  trial_ate        timestamptz default now() + interval '14 days',
+  trial_ate        timestamptz default now() + interval '3 days',
   origem_cadastro  text not null default 'superadmin'
                    constraint empresas_origem_cadastro check (origem_cadastro in ('self', 'superadmin')),
   config_impressao jsonb not null

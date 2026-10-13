@@ -1,7 +1,7 @@
 // node --test lib/planos.test.ts
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { situacaoPlano } from "./planos.ts";
+import { DIAS_TRIAL, situacaoPlano } from "./planos.ts";
 import { erroSlug, gerarSlug } from "./slug.ts";
 
 const agora = Date.parse("2026-10-13T12:00:00Z");
@@ -9,8 +9,9 @@ const dia = 86_400_000;
 const em = (ms: number) => new Date(agora + ms).toISOString();
 
 test("trial no prazo: liberada, dias arredondados para cima", () => {
-  assert.deepEqual(situacaoPlano({ ativo: true, plano_status: "trial", trial_ate: em(14 * dia) }, agora),
-    { trial: true, liberada: true, diasRestantes: 14 });
+  assert.equal(DIAS_TRIAL, 3);
+  assert.deepEqual(situacaoPlano({ ativo: true, plano_status: "trial", trial_ate: em(DIAS_TRIAL * dia) }, agora),
+    { trial: true, liberada: true, diasRestantes: DIAS_TRIAL });
   assert.equal(situacaoPlano({ ativo: true, plano_status: "trial", trial_ate: em(2 * 3600_000) }, agora).diasRestantes, 1);
 });
 

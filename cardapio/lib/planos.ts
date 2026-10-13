@@ -4,7 +4,7 @@ export const PRECO_MENSAL = 149.9;
 // Sem taxa de setup: a implantação vem no plano.
 export const CONFIGURACAO_INCLUSA =
   "Configuração completa inclusa: cadastramos seu cardápio, fotos, QR Codes e instalamos a impressora";
-export const DIAS_TRIAL = 14; // o banco é quem grava (default de empresas.trial_ate)
+export const DIAS_TRIAL = 3; // o banco é quem grava (default de empresas.trial_ate)
 export const INCLUI = [
   "Pedidos ilimitados, sem taxa por pedido",
   "Cardápio digital com fotos, busca e link próprio",
