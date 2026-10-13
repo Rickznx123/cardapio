@@ -37,7 +37,7 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
   const [erro, setErro] = useState("");
   const [cupom, setCupom] = useState("");
   const [validacaoCupom, setValidacaoCupom] = useState<{ chave: string; ok: boolean; desconto?: number; erro?: string } | null>(null);
-  const autoPreenchimento = useRef<{ telefone: string; nome: string | null; endereco: string | null; bairroId: string | null } | null>(null);
+  const autoPreenchimento = useRef<{ telefone: string; nome: string | null } | null>(null);
   const telefoneDigitos = telefone.replace(/\D/g, "");
 
   const bairro = tipo === "entrega" ? bairros.find((b) => b.id === bairroId) : undefined;
@@ -66,14 +66,11 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
         .then(({ data, error: erroRpc }) => {
           if (!ativo) return;
           if (erroRpc) return setErro(erroRpc.message);
-          const salvo = data as { nome?: string | null; endereco?: string | null; bairro_id?: string | null } | null;
+          const salvo = data as { nome?: string | null } | null;
           if (!salvo) return;
           setNome((atual) => atual || salvo.nome || "");
-          setEndereco((atual) => atual || salvo.endereco || "");
-          setBairroId((atual) => atual || salvo.bairro_id || "");
           autoPreenchimento.current = {
             telefone: telefoneDigitos, nome: salvo.nome ?? null,
-            endereco: salvo.endereco ?? null, bairroId: salvo.bairro_id ?? null,
           };
         });
     }, 350);
@@ -107,8 +104,6 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
     const anterior = autoPreenchimento.current;
     if (anterior && anterior.telefone !== digitos) {
       if (nome === anterior.nome) setNome("");
-      if (endereco === anterior.endereco) setEndereco("");
-      if (bairroId === anterior.bairroId) setBairroId("");
       autoPreenchimento.current = null;
     }
     setTelefone(formatado);

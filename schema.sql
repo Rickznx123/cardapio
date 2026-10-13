@@ -1126,12 +1126,12 @@ revoke all on function public._pedido_cliente_totais() from public, anon, authen
 create trigger pedidos_cliente_totais after insert or update of status, total, cliente_id on pedidos
   for each row execute function public._pedido_cliente_totais();
 
--- Checkout: dados salvos do mesmo telefone (só nome, endereço e bairro).
+-- Checkout público: retorna somente o primeiro nome; não expõe endereço nem bairro.
 create or replace function public.cliente_por_telefone(p_empresa_id uuid, p_telefone text)
 returns json
 language sql stable security definer set search_path = public
 as $$
-  select json_build_object('nome', c.nome, 'endereco', c.endereco, 'bairro_id', c.bairro_id)
+  select json_build_object('nome', nullif(split_part(trim(c.nome), ' ', 1), ''))
   from clientes c
   where c.empresa_id = p_empresa_id and c.telefone = normalizar_telefone(p_telefone) and empresa_liberada(p_empresa_id);
 $$;
@@ -1523,7 +1523,7 @@ begin
   update clientes set ultimo_recuperador_em = now() where id = p_cliente;
 
   return json_build_object('envio_id', v_envio, 'codigo', v_codigo, 'validade', v_validade,
-                           'telefone', v_cli.telefone, 'nome', v_cli.nome);
+                           'telefone', v_cli.telefone, 'nome', v_cli.nome, 'cliente_id', p_cliente);
 end;
 $$;
 revoke all on function public.recuperador_reservar(uuid, uuid) from public, anon, authenticated;

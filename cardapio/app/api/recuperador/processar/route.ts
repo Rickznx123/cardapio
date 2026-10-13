@@ -8,7 +8,7 @@ import { enviar } from "@/lib/whatsapp/servidor";
 export const maxDuration = 120;
 
 type Empresa = { empresa_id: string; instancia: string; slug: string; nome: string; enviados_hoje: number };
-type Reserva = { envio_id: string; codigo: string; validade: string; telefone: string; nome: string | null } | null;
+type Reserva = { envio_id: string; codigo: string; validade: string; telefone: string; nome: string | null; cliente_id: string } | null;
 
 function autorizado(request: Request) {
   const secret = Buffer.from(process.env.CRON_SECRET ?? "");
@@ -88,21 +88,46 @@ export async function POST(request: Request) {
         link_cardapio: `${new URL(request.url).origin}/${empresa.slug}`,
       });
 
+      let erroEnvio: unknown;
+      let envioFalhou = false;
       try {
         await enviar(admin, empresa.instancia, reserva.telefone, texto);
+      } catch (e) {
+        envioFalhou = true;
+        erroEnvio = e;
+      }
+
+      if (envioFalhou) {
+        falhas++;
+        const mensagem = erroEnvio instanceof Error ? erroEnvio.message.slice(0, 500) : "Falha desconhecida no envio";
+        const { error: erroAtualizacao } = await admin.from("recuperador_envios")
+          .update({ status: "falhou", erro: mensagem }).eq("id", reserva.envio_id);
+        if (erroAtualizacao) {
+          console.error("recuperador marcar falha:", erroAtualizacao);
+          erros.push(`${empresa.empresa_id}: falha ao registrar envio com erro`);
+          Sentry.captureException(erroAtualizacao, { tags: { rota: "recuperador-processar" } });
+        } else {
+          const { error: erroCliente } = await admin.from("clientes")
+            .update({ ultimo_recuperador_em: null }).eq("id", reserva.cliente_id);
+          if (erroCliente) {
+            console.error("recuperador liberar cliente:", erroCliente);
+            erros.push(`${empresa.empresa_id}: falha ao liberar cliente para nova tentativa`);
+            Sentry.captureException(erroCliente, { tags: { rota: "recuperador-processar" } });
+          }
+        }
+        console.error("recuperador envio:", erroEnvio);
+        Sentry.captureException(erroEnvio, { tags: { rota: "recuperador-processar" } });
+      } else {
         const { error: erroAtualizacao } = await admin.from("recuperador_envios")
           .update({ status: "enviado", enviado_em: new Date().toISOString(), erro: null })
           .eq("id", reserva.envio_id);
-        if (erroAtualizacao) throw new Error(erroAtualizacao.message);
-        enviados++;
-      } catch (e) {
-        falhas++;
-        const mensagem = e instanceof Error ? e.message.slice(0, 500) : "Falha desconhecida no envio";
-        const { error: erroAtualizacao } = await admin.from("recuperador_envios")
-          .update({ status: "falhou", erro: mensagem }).eq("id", reserva.envio_id);
-        if (erroAtualizacao) console.error("recuperador marcar falha:", erroAtualizacao);
-        console.error("recuperador envio:", e);
-        Sentry.captureException(e, { tags: { rota: "recuperador-processar" } });
+        if (erroAtualizacao) {
+          console.error("recuperador marcar enviado:", erroAtualizacao);
+          erros.push(`${empresa.empresa_id}: mensagem enviada, mas falha ao registrar o status`);
+          Sentry.captureException(erroAtualizacao, { tags: { rota: "recuperador-processar" } });
+        } else {
+          enviados++;
+        }
       }
 
       if (indice < (elegiveis?.length ?? 0) - 1) await aguardar(20_000 + Math.floor(Math.random() * 20_001));
