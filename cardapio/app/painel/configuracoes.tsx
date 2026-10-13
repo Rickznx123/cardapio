@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "@/components/toast";
 import type { ConfigImpressao } from "@/lib/cupom";
 import { enviarFoto } from "@/lib/foto";
+import type { PlanoStatus } from "@/lib/planos";
 import { erroSlug } from "@/lib/slug";
 import type { FormaPagamento, Horarios } from "@/lib/tipos";
 import { botao, card, FotoInput, input, ok, rotulo, supabase } from "./ui";
@@ -17,6 +18,7 @@ export type Empresa = {
   tempo_entrega_min: number | null; tempo_entrega_max: number | null; tempo_retirada: number | null;
   horarios: Horarios | null; config_impressao: ConfigImpressao;
   virada_dia: string; // "05:00:00": fim do dia de trabalho (dia operacional)
+  plano_status: PlanoStatus; trial_ate: string | null; origem_cadastro: "self" | "superadmin";
 };
 
 // Configurações ▸ Info do negócio: identidade e contato.

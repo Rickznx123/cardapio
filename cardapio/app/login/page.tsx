@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { UtensilsCrossed } from "lucide-react";
 import { Modal } from "@/components/modal";
+import { PRODUTO } from "@/lib/marca";
 import { createClient } from "@/lib/supabase/client";
 
 const destino = { dono: "/painel", caixa: "/painel" } as const;
@@ -49,7 +50,7 @@ export default function Login() {
         className="w-full max-w-sm space-y-4 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
         <div className="flex items-center gap-2 text-rose-600">
           <UtensilsCrossed className="size-6" />
-          <span className="font-bold">Cardápio Digital</span>
+          <span className="font-bold">{PRODUTO}</span>
         </div>
         <h1 className="text-2xl font-bold">Entrar</h1>
         <label className="block"><span className="mb-1 block text-sm font-medium">E-mail</span>
@@ -65,6 +66,9 @@ export default function Login() {
         <button type="button" onClick={() => setEsqueci(true)} className="w-full text-center text-sm font-medium text-rose-700 hover:underline dark:text-rose-400">
           Esqueci minha senha
         </button>
+        <p className="text-center text-sm text-neutral-600 dark:text-neutral-400">
+          Ainda não tem conta? <Link href="/cadastro" className="font-semibold text-rose-700 dark:text-rose-400">Teste grátis</Link>
+        </p>
         <p className="text-center text-xs text-neutral-500">Garçom? Entre pelo app da sua loja: <b>/sua-loja/garcom</b></p>
       </form>
       {esqueci && <EsqueciSenha campo={campo} fechar={() => setEsqueci(false)} />}

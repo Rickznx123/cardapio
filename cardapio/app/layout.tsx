@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { PRODUTO, SITE_URL } from "@/lib/marca";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cardápio Digital",
-  description: "Cardápio digital e pedidos",
+  metadataBase: new URL(SITE_URL),
+  title: PRODUTO,
+  description: "Cardápio digital, delivery e pedidos sem taxa por pedido.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

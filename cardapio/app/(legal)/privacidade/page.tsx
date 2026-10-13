@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import { PRODUTO } from "@/lib/marca";
 import { CONTATO, OPERADORA } from "../dados";
 
-export const metadata: Metadata = { title: "Política de privacidade · Cardápio Digital" };
+export const metadata: Metadata = { title: `Política de privacidade · ${PRODUTO}` };
 
 export default function Privacidade() {
   return (

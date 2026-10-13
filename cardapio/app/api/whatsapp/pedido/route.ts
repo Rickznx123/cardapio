@@ -41,7 +41,7 @@ export async function POST(request: Request) {
         admin.from("pedidos").select("id, numero, total, cliente_nome, cliente_telefone").eq("id", id).single(),
         admin.from("empresas").select(CAMPOS_EMPRESA).eq("id", empresa_id).single(),
       ]);
-      if (!p || !empresa?.ativo) return;
+      if (!p || !empresa || !(await admin.rpc("empresa_liberada", { p_empresa: empresa_id })).data) return;
       const vars = { ...variaveisEmpresa(empresa, origem), ...variaveisPedido(p, empresa.slug, origem) };
       await enviar(admin, conexao.instancia, numeroWhats(p.cliente_telefone)!, preencher(texto, vars));
     } catch (e) {

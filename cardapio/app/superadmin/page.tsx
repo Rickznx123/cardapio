@@ -5,11 +5,15 @@ import Link from "next/link";
 import { ExternalLink, Plus, ShieldCheck } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { toast } from "@/components/toast";
-import { botao, card, input, rotulo } from "../painel/ui";
+import { type PlanoStatus, situacaoPlano } from "@/lib/planos";
+import { botao, botaoSec, card, input, rotulo } from "../painel/ui";
 
 type Empresa = {
   id: string; nome: string; slug: string; ativo: boolean; created_at: string; pedidos_30d: number; dono_email: string | null;
+  plano_status: PlanoStatus; trial_ate: string | null; origem_cadastro: "self" | "superadmin";
 };
+
+const ROTULO_PLANO: Record<PlanoStatus, string> = { trial: "Teste", ativo: "Assinante", vencido: "Vencido", cancelado: "Cancelado" };
 
 async function api(metodo: "GET" | "POST" | "PATCH", corpo?: object) {
   const r = await fetch("/api/superadmin", {
@@ -23,11 +27,12 @@ async function api(metodo: "GET" | "POST" | "PATCH", corpo?: object) {
 export default function Superadmin() {
   const [empresas, setEmpresas] = useState<Empresa[] | null | undefined>();
   const [criando, setCriando] = useState(false);
+  const [agora, setAgora] = useState(0); // hora da última carga (dias restantes do trial)
   const [versao, setVersao] = useState(0);
   const recarregar = useCallback(() => setVersao((v) => v + 1), []);
 
   useEffect(() => {
-    api("GET").then(({ ok, j }) => setEmpresas(ok ? j : null));
+    api("GET").then(({ ok, j }) => { setAgora(Date.now()); setEmpresas(ok ? j : null); });
   }, [versao]);
 
   async function alternar(e: Empresa) {
@@ -35,6 +40,14 @@ export default function Superadmin() {
     const { ok, j } = await api("PATCH", { empresa_id: e.id, ativo: !e.ativo });
     if (!ok) return toast.erro(j.erro ?? "Erro");
     toast.ok(e.ativo ? "Empresa desativada" : "Empresa ativada");
+    recarregar();
+  }
+
+  async function plano(e: Empresa, acao: "estender_trial" | "marcar_ativo") {
+    if (acao === "marcar_ativo" && !confirm(`Marcar ${e.nome} como assinante (plano ativo)?`)) return;
+    const { ok, j } = await api("PATCH", { empresa_id: e.id, acao });
+    if (!ok) return toast.erro(j.erro ?? "Erro");
+    toast.ok(acao === "marcar_ativo" ? "Plano ativo" : "Teste estendido em 7 dias");
     recarregar();
   }
 
@@ -71,6 +84,13 @@ export default function Superadmin() {
               </p>
             </div>
             <p className="text-sm tabular-nums"><b>{e.pedidos_30d}</b> pedidos em 30 dias</p>
+            <Plano e={e} agora={agora} />
+            {e.plano_status !== "ativo" && (
+              <span className="flex gap-1.5">
+                <button onClick={() => plano(e, "estender_trial")} className={botaoSec}>+7 dias</button>
+                <button onClick={() => plano(e, "marcar_ativo")} className={botaoSec}>Marcar ativo</button>
+              </span>
+            )}
             <Link href={`/${e.slug}`} target="_blank" aria-label={`Abrir cardápio de ${e.nome}`}
               className="flex size-10 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800">
               <ExternalLink className="size-5" />
@@ -86,6 +106,19 @@ export default function Superadmin() {
 
       {criando && <NovaEmpresa fechar={() => setCriando(false)} criada={() => { setCriando(false); recarregar(); }} />}
     </main>
+  );
+}
+
+function Plano({ e, agora }: { e: Empresa; agora: number }) {
+  const s = situacaoPlano(e, agora);
+  const cor = e.plano_status === "ativo" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+    : s.liberada ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300";
+  return (
+    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${cor}`}>
+      {ROTULO_PLANO[e.plano_status]}
+      {s.trial && (s.liberada ? ` · ${s.diasRestantes}d` : " vencido")}
+      {e.origem_cadastro === "self" && " · self"}
+    </span>
   );
 }
 

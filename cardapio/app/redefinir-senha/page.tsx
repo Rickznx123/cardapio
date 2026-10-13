@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { UtensilsCrossed } from "lucide-react";
 import { toast } from "@/components/toast";
+import { PRODUTO } from "@/lib/marca";
 import { createClient } from "@/lib/supabase/client";
 
 // Destino do link "Esqueci minha senha". O client do Supabase troca o ?code= da URL por uma sessão ao iniciar.
@@ -38,7 +39,7 @@ export default function RedefinirSenha() {
       <div className="w-full max-w-sm space-y-4 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
         <div className="flex items-center gap-2 text-rose-600">
           <UtensilsCrossed className="size-6" />
-          <span className="font-bold">Cardápio Digital</span>
+          <span className="font-bold">{PRODUTO}</span>
         </div>
         <h1 className="text-2xl font-bold">Nova senha</h1>
         {valido === undefined ? (

@@ -1,0 +1,231 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import {
+  ArrowRight, BarChart3, Bike, Bot, CircleCheck, ClipboardList, MessageCircle, Printer, QrCode, Smartphone, Store, UtensilsCrossed,
+} from "lucide-react";
+import { linkVendas, PRODUTO } from "@/lib/marca";
+import { DIAS_TRIAL, INCLUI, PRECO_MENSAL, PRECO_SETUP } from "@/lib/planos";
+import { brl } from "@/lib/tipos";
+
+const TITULO = `${PRODUTO}: cardápio digital e pedidos sem taxa por pedido`;
+const DESCRICAO = "Cardápio online, delivery com taxa por bairro, app do garçom, impressão automática e chatbot no WhatsApp. "
+  + `Mensalidade fixa, pedidos ilimitados. Teste grátis por ${DIAS_TRIAL} dias.`;
+
+export const metadata: Metadata = {
+  title: TITULO,
+  description: DESCRICAO,
+  alternates: { canonical: "/" },
+  openGraph: { title: TITULO, description: DESCRICAO, type: "website", locale: "pt_BR", siteName: PRODUTO, url: "/" },
+};
+
+const CTA = `Testar grátis por ${DIAS_TRIAL} dias`;
+const botaoPrimario = "inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-rose-600 px-7 text-lg font-semibold text-white shadow-lg shadow-rose-600/20 hover:bg-rose-700";
+const botaoSecundario = "inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-neutral-300 bg-white px-7 text-lg font-semibold hover:bg-neutral-50";
+
+const PASSOS = [
+  { Icone: UtensilsCrossed, titulo: "Cadastre o cardápio", texto: "Crie sua conta e adicione itens, fotos e preços. Leva poucos minutos." },
+  { Icone: QrCode, titulo: "Compartilhe o link e o QR", texto: "Mande o link no WhatsApp e no Instagram e cole o QR Code nas mesas." },
+  { Icone: Printer, titulo: "Receba e imprima", texto: "Os pedidos chegam na hora no painel e o cupom sai impresso sozinho." },
+];
+
+const RECURSOS = [
+  { Icone: Smartphone, titulo: "Cardápio digital", texto: "Fotos, busca, destaques e carrinho. Abre no celular do cliente, sem baixar app." },
+  { Icone: CircleCheck, titulo: "Pedidos ilimitados, sem taxa", texto: "Mensalidade fixa. Venda 10 ou 10 mil pedidos e pague o mesmo valor." },
+  { Icone: Bike, titulo: "Delivery com taxa por bairro", texto: "Taxa e pedido mínimo por bairro, troco e forma de pagamento já no pedido." },
+  { Icone: ClipboardList, titulo: "App do garçom", texto: "Pedido da mesa lançado pelo celular, comanda aberta e fechamento da conta." },
+  { Icone: Printer, titulo: "Impressão automática", texto: "Cupom na impressora térmica assim que o pedido chega, com via da cozinha." },
+  { Icone: BarChart3, titulo: "Caixa e relatórios", texto: "Abertura e fechamento de caixa, sangria, histórico e relatório de vendas." },
+  { Icone: Bot, titulo: "Chatbot no WhatsApp", texto: "Responde horários e dúvidas, manda o link do cardápio e avisa o status do pedido." },
+];
+
+const FAQ = [
+  ["Preciso de impressora?", "Não. Os pedidos aparecem no painel em tempo real, no computador ou no celular. Se quiser imprimir, qualquer impressora térmica de 58 ou 80 mm ligada a um computador funciona."],
+  ["Funciona no celular?", "Sim. O cardápio do cliente, o app do garçom e o painel funcionam no navegador do celular, sem instalar nada."],
+  ["Tem fidelidade?", "Não. O plano é mensal e você usa enquanto fizer sentido para o seu negócio."],
+  ["Posso cancelar quando quiser?", "Pode. É só avisar pelo WhatsApp; não há multa."],
+  ["Vocês cobram porcentagem dos pedidos?", "Não. A mensalidade é fixa e os pedidos são ilimitados. O dinheiro das vendas vai direto para você."],
+  [`O que acontece depois dos ${DIAS_TRIAL} dias de teste?`, "Se gostar, é só assinar e tudo continua como está. Se não assinar, o cardápio fica indisponível, mas nada do que você cadastrou é apagado."],
+] as const;
+
+// Comparação ilustrativa com comissão de apps de delivery.
+const PEDIDOS_MES = 300;
+const TICKET = 40;
+const comissao = (p: number) => brl(PEDIDOS_MES * TICKET * p);
+
+export default function Home() {
+  return (
+    <div className="flex flex-1 flex-col bg-white text-neutral-900">
+      <header className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 p-4">
+        <span className="flex items-center gap-2 font-bold text-rose-600">
+          <UtensilsCrossed className="size-6" /> {PRODUTO}
+        </span>
+        <nav className="flex items-center gap-1 text-sm font-semibold">
+          <a href="#planos" className="hidden rounded-lg px-3 py-2 hover:bg-neutral-100 sm:block">Preço</a>
+          <Link href="/login" className="rounded-lg px-3 py-2 hover:bg-neutral-100">Entrar</Link>
+          <Link href="/cadastro" className="rounded-lg bg-rose-600 px-3 py-2 text-white hover:bg-rose-700">Teste grátis</Link>
+        </nav>
+      </header>
+
+      <main className="flex-1">
+        <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pt-8 pb-16 md:grid-cols-2 md:pt-16">
+          <div className="text-center md:text-left">
+            <p className="mb-3 inline-block rounded-full bg-rose-50 px-3 py-1 text-sm font-semibold text-rose-700">Para lanchonetes, pizzarias e restaurantes</p>
+            <h1 className="text-4xl font-bold tracking-tight text-balance sm:text-5xl">
+              Receba pedidos online <span className="text-rose-600">sem pagar taxa por pedido</span>
+            </h1>
+            <p className="mt-5 text-lg text-neutral-600 text-pretty">
+              Cardápio digital, delivery, mesas e balcão num só lugar. Mensalidade fixa de {brl(PRECO_MENSAL)} e pedidos ilimitados.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center md:justify-start">
+              <Link href="/cadastro" className={botaoPrimario}>{CTA} <ArrowRight className="size-5" /></Link>
+              <a href={linkVendas()} target="_blank" rel="noopener noreferrer" className={botaoSecundario}>
+                <MessageCircle className="size-5 text-emerald-600" /> Falar no WhatsApp
+              </a>
+            </div>
+            <p className="mt-3 text-sm text-neutral-500">Sem cartão de crédito. Pronto em minutos.</p>
+          </div>
+          <Mockups />
+        </section>
+
+        <section className="bg-neutral-50 py-16" aria-labelledby="como">
+          <div className="mx-auto max-w-6xl px-4">
+            <h2 id="como" className="text-center text-3xl font-bold">Como funciona</h2>
+            <ol className="mt-10 grid gap-4 sm:grid-cols-3">
+              {PASSOS.map(({ Icone, titulo, texto }, i) => (
+                <li key={titulo} className="rounded-2xl bg-white p-6 shadow-sm">
+                  <span className="flex items-center gap-3">
+                    <span className="flex size-10 items-center justify-center rounded-full bg-rose-600 font-bold text-white">{i + 1}</span>
+                    <Icone className="size-6 text-rose-600" />
+                  </span>
+                  <h3 className="mt-4 text-lg font-semibold">{titulo}</h3>
+                  <p className="mt-1 text-neutral-600">{texto}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section className="py-16" aria-labelledby="recursos">
+          <div className="mx-auto max-w-6xl px-4">
+            <h2 id="recursos" className="text-center text-3xl font-bold">Tudo o que sua loja precisa</h2>
+            <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {RECURSOS.map(({ Icone, titulo, texto }) => (
+                <li key={titulo} className="rounded-2xl border border-neutral-200 p-6">
+                  <span className="flex size-12 items-center justify-center rounded-xl bg-rose-50 text-rose-600"><Icone className="size-6" /></span>
+                  <h3 className="mt-4 text-lg font-semibold">{titulo}</h3>
+                  <p className="mt-1 text-neutral-600">{texto}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section id="planos" className="scroll-mt-4 bg-neutral-50 py-16" aria-labelledby="titulo-planos">
+          <div className="mx-auto grid max-w-5xl items-start gap-6 px-4 md:grid-cols-2">
+            <div className="rounded-3xl border-2 border-rose-600 bg-white p-6 shadow-sm sm:p-8">
+              <h2 id="titulo-planos" className="text-2xl font-bold">Plano completo</h2>
+              <p className="mt-4"><span className="text-5xl font-black tabular-nums">{brl(PRECO_MENSAL)}</span><span className="text-neutral-500">/mês</span></p>
+              <p className="mt-1 font-medium text-emerald-700">Pedidos ilimitados. Sem taxa por pedido. Sem fidelidade.</p>
+              <ul className="mt-6 space-y-2">
+                {INCLUI.map((i) => <li key={i} className="flex gap-2"><CircleCheck className="mt-0.5 size-5 shrink-0 text-emerald-600" /> {i}</li>)}
+              </ul>
+              <Link href="/cadastro" className={`${botaoPrimario} mt-8 w-full`}>{CTA}</Link>
+              <p className="mt-4 rounded-xl bg-neutral-50 p-3 text-sm text-neutral-600">
+                <b>Opcional: {brl(PRECO_SETUP)} uma vez</b> — nós cadastramos tudo pra você (cardápio, fotos, bairros e impressora).
+              </p>
+            </div>
+            <div className="space-y-4 p-2 md:pt-6">
+              <h3 className="text-2xl font-bold">Faça a conta</h3>
+              <p className="text-neutral-600">
+                Apps de delivery costumam cobrar de 12% a 27% de comissão por pedido. Com {PEDIDOS_MES} pedidos de {brl(TICKET)} por mês:
+              </p>
+              <dl className="divide-y divide-neutral-200 rounded-2xl bg-white shadow-sm">
+                <div className="flex justify-between gap-4 p-4"><dt>Comissão de 12%</dt><dd className="font-semibold text-red-600 tabular-nums">{comissao(0.12)}/mês</dd></div>
+                <div className="flex justify-between gap-4 p-4"><dt>Comissão de 27%</dt><dd className="font-semibold text-red-600 tabular-nums">{comissao(0.27)}/mês</dd></div>
+                <div className="flex justify-between gap-4 p-4 text-lg"><dt className="font-semibold">{PRODUTO}</dt><dd className="font-black text-emerald-700 tabular-nums">{brl(PRECO_MENSAL)}/mês</dd></div>
+              </dl>
+              <p className="text-sm text-neutral-500">Valores ilustrativos. A comissão varia conforme o app e o plano contratado.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="py-16" aria-labelledby="faq">
+          <div className="mx-auto max-w-3xl px-4">
+            <h2 id="faq" className="text-center text-3xl font-bold">Perguntas frequentes</h2>
+            <div className="mt-8 divide-y divide-neutral-200 rounded-2xl border border-neutral-200">
+              {FAQ.map(([p, r]) => (
+                <details key={p} className="group p-5">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold [&::-webkit-details-marker]:hidden">
+                    {p} <span className="text-2xl leading-none text-rose-600 transition-transform group-open:rotate-45">+</span>
+                  </summary>
+                  <p className="mt-3 text-neutral-600">{r}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="px-4 pb-16">
+          <div className="mx-auto max-w-5xl rounded-3xl bg-rose-600 px-6 py-12 text-center text-white">
+            <h2 className="text-3xl font-bold text-balance">Seu cardápio no ar ainda hoje</h2>
+            <p className="mt-3 text-rose-100">{DIAS_TRIAL} dias grátis com tudo liberado. Sem cartão de crédito.</p>
+            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+              <Link href="/cadastro" className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-white px-7 text-lg font-semibold text-rose-700 hover:bg-rose-50">
+                {CTA} <ArrowRight className="size-5" />
+              </Link>
+              <a href={linkVendas()} target="_blank" rel="noopener noreferrer"
+                className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-white/40 px-7 text-lg font-semibold hover:bg-white/10">
+                <MessageCircle className="size-5" /> Falar no WhatsApp
+              </a>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-neutral-200 p-6 text-center text-sm text-neutral-500">
+        © {PRODUTO} · <Link href="/termos" className="hover:underline">Termos de uso</Link> ·{" "}
+        <Link href="/privacidade" className="hover:underline">Privacidade</Link> · <Link href="/login" className="hover:underline">Entrar</Link>
+      </footer>
+    </div>
+  );
+}
+
+// Celular com o cardápio + painel de pedidos atrás (só HTML/CSS, sem imagem).
+function Mockups() {
+  const itens = [["X-Burguer", "R$ 24,90"], ["X-Salada", "R$ 27,90"], ["Batata frita", "R$ 18,00"], ["Refrigerante lata", "R$ 6,00"]];
+  const pedidos = [["#128", "Delivery", "Novo", "bg-rose-600 text-white"], ["#127", "Mesa 4", "Em preparo", "bg-amber-400"], ["#126", "Balcão", "Pronto", "bg-emerald-600 text-white"]];
+  return (
+    <div className="relative mx-auto h-[26rem] w-full max-w-md" aria-hidden>
+      <div className="absolute top-6 right-0 hidden w-80 rounded-2xl border border-neutral-200 bg-white p-4 shadow-xl sm:block">
+        <p className="flex items-center gap-2 text-sm font-bold"><Store className="size-4 text-rose-600" /> Pedidos · hoje</p>
+        <ul className="mt-3 space-y-2">
+          {pedidos.map(([n, tipo, status, cor]) => (
+            <li key={n} className="flex items-center justify-between rounded-lg border border-neutral-200 px-3 py-2 text-sm">
+              <span className="font-black">{n}</span><span className="text-neutral-500">{tipo}</span>
+              <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${cor}`}>{status}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 flex items-center gap-1.5 text-xs text-neutral-500"><Printer className="size-3.5" /> Impressão automática ligada</p>
+      </div>
+      <div className="absolute top-0 left-1/2 w-56 -translate-x-1/2 overflow-hidden rounded-[2.2rem] border-[7px] border-neutral-900 bg-white shadow-2xl sm:left-2 sm:translate-x-0">
+        <div className="h-16 bg-gradient-to-br from-rose-500 to-orange-400" />
+        <div className="px-3 pb-4">
+          <div className="-mt-6 size-12 rounded-full bg-white p-1 shadow"><div className="size-full rounded-full bg-rose-600" /></div>
+          <p className="mt-1 font-bold">Lanchonete do Zé</p>
+          <p className="text-[11px] font-semibold text-emerald-700">● Aberto · entrega 30–45 min</p>
+          <ul className="mt-3 space-y-2">
+            {itens.map(([nome, preco]) => (
+              <li key={nome} className="flex items-center gap-2 rounded-xl border border-neutral-200 p-2">
+                <span className="size-9 shrink-0 rounded-lg bg-gradient-to-br from-amber-200 to-orange-300" />
+                <span className="min-w-0 flex-1 truncate text-xs font-semibold">{nome}</span>
+                <span className="text-xs font-bold">{preco}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 rounded-xl bg-rose-600 py-2 text-center text-xs font-bold text-white">Ver carrinho · R$ 52,80</p>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ImagePlus } from "lucide-react";
 import { toast } from "@/components/toast";
 import { createClient } from "@/lib/supabase/client";
+import type { Empresa } from "./configuracoes";
 
 export const supabase = createClient();
 
@@ -95,4 +96,22 @@ export function FotoInput({ name, atual, titulo }: { name: string; atual: string
         }} />
     </label>
   );
+}
+
+export type Papel = "dono" | "caixa";
+
+// Empresa e papel do usuário logado no painel. null = sem login (manda para /login).
+export async function carregarSessao(): Promise<{ papel: Papel; empresa: Empresa | null } | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  // shortcut: membro de várias empresas vê só a primeira; adicionar seletor quando houver esse caso.
+  const { data } = await supabase
+    .from("membros")
+    .select("papel, empresas(*)")
+    .eq("user_id", user.id)
+    .in("papel", ["dono", "caixa"])
+    .eq("ativo", true)
+    .limit(1)
+    .maybeSingle();
+  return { papel: (data?.papel ?? "caixa") as Papel, empresa: (data?.empresas as unknown as Empresa) ?? null };
 }

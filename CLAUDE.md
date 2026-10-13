@@ -41,6 +41,9 @@ Interface 100% em português (pt-BR), valores em R$.
   Utilitários em `lib/horarios.ts` (fuso `America/Cuiaba`): `abertoAgora` (conta a madrugada do turno de ontem), dia operacional.
   Informativo: não abre/fecha a loja; o bot do WhatsApp responde "ausência" fora do horário.
 - Dia operacional: termina às `empresas.virada_dia` (default 05:00). "Hoje" dos Pedidos, Histórico e Relatórios (`p_virada`) usam isso.
+- Plano: `empresas.plano_status` (trial/ativo/vencido/cancelado) + `trial_ate` (default now + 14 dias). `empresa_liberada(id)` =
+  ativo e (plano ativo ou trial no prazo): usada no cardápio público, bot, login do garçom, `listar_garcons` e no trigger
+  `pedidos_empresa_liberada` (barra qualquer pedido novo). Painel: faixa do trial + "Assinar" (WhatsApp, cobrança manual); vencido = tela de teste encerrado.
 - Empresa inativa: cardápio mostra "indisponível" (checagem server com service role) e o painel bloqueia com aviso.
 - Status `saiu` (saiu para entrega) só em pedidos de entrega, entre `pronto` e `entregue`.
 - Pagar sem caixa aberto é barrado no banco (trigger `pedidos_caixa`), inclusive via `fechar_comanda`.
@@ -48,7 +51,9 @@ Interface 100% em português (pt-BR), valores em R$.
 ## Áreas / rotas
 | Rota | Quem usa | O quê |
 |---|---|---|
-| `/` | visitante | landing do produto + "Entrar" |
+| `/` | visitante | landing de vendas (`app/(site)/`, server component): hero, como funciona, recursos, plano, FAQ. Marca/WhatsApp de vendas em `lib/marca.ts`, preço em `lib/planos.ts`. `robots.ts` e `sitemap.ts` (lojas ativas) |
+| `/cadastro` + `/api/cadastro` | visitante | cadastro self-service: empresa em teste grátis + dono, Turnstile (`TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY`; sem chave só passa fora de produção), máx. 5/h por IP (`cadastro_tentativas`), já loga e vai para `/painel/comecar` |
+| `/painel/comecar` | dono | wizard de primeiros passos (marca, 3 itens, entrega, QR). Painel mostra checklist "Complete sua loja x/5" até completar |
 | `/[slug]` | cliente | cardápio: capa, informações, busca, último pedido (repetir), carrinho, checkout com pagamento/troco |
 | `/[slug]/pedido/[id]` | cliente | confirmação via RPC `ver_pedido_publico` (status atualiza a cada 20s) + botão WhatsApp |
 | `/login` | dono/caixa | login por e-mail/senha → `/painel`; "Esqueci minha senha" (`resetPasswordForEmail`) |
@@ -113,3 +118,6 @@ O garçom escolhe o nome e digita o PIN; `/api/garcom/login` busca o e-mail com 
   `bot_config`, `bot_conversas`, `whatsapp_eventos` (RLS: dono lê/edita conexão, mensagens e config; resto só service role)
 - `009_horarios.sql`: converte `horarios` para lista de turnos por dia; `empresas.virada_dia`; `relatorio_vendas` ganha `p_virada`
 - `010_superadmin.sql`: slugs `superadmin`, `termos`, `privacidade`, `redefinir-senha` reservados; RPC `superadmin_empresas` (só service role)
+- `011_trial.sql`: `plano_status`/`trial_ate`/`origem_cadastro` (existentes viram `ativo`); `empresa_liberada`; trigger
+  `pedidos_empresa_liberada`; `listar_garcons` usa liberada; slugs `cadastro`/`opengraph-image` reservados; `cadastro_tentativas`;
+  `superadmin_empresas` devolve plano

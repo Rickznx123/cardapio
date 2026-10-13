@@ -56,12 +56,23 @@ export async function POST(request: Request) {
   return NextResponse.json({ id: empresa.id });
 }
 
-// Ativa/desativa empresa.
+// Ativa/desativa empresa ({ativo}) ou mexe no plano ({acao: "estender_trial" | "marcar_ativo"}).
 export async function PATCH(request: Request) {
   if (!(await eSuperadmin())) return erro("Sem acesso", 403);
-  const { empresa_id, ativo } = await request.json().catch(() => ({}));
-  if (typeof empresa_id !== "string" || typeof ativo !== "boolean") return erro("Dados inválidos", 400);
-  const { error } = await createAdminClient().from("empresas").update({ ativo }).eq("id", empresa_id);
+  const { empresa_id, ativo, acao } = await request.json().catch(() => ({}));
+  if (typeof empresa_id !== "string") return erro("Dados inválidos", 400);
+  const admin = createAdminClient();
+  let campos: object;
+  if (typeof ativo === "boolean") campos = { ativo };
+  else if (acao === "marcar_ativo") campos = { plano_status: "ativo" };
+  else if (acao === "estender_trial") {
+    // +7 dias a partir do fim do trial, ou de agora se já venceu. Volta para trial se estava vencido.
+    const { data: e } = await admin.from("empresas").select("trial_ate").eq("id", empresa_id).maybeSingle();
+    if (!e) return erro("Empresa não encontrada", 404);
+    const base = Math.max(Date.now(), e.trial_ate ? Date.parse(e.trial_ate) : 0);
+    campos = { plano_status: "trial", trial_ate: new Date(base + 7 * 86_400_000).toISOString() };
+  } else return erro("Dados inválidos", 400);
+  const { error } = await admin.from("empresas").update(campos).eq("id", empresa_id);
   if (error) return erro(error.message, 400);
   return NextResponse.json({ ok: true });
 }

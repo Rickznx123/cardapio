@@ -29,12 +29,14 @@ async function Conteudo({ params }: { params: Promise<{ slug: string }> }) {
     return <Indisponivel nome={inativa.nome} />;
   }
 
-  const [categorias, itens, bairros] = await Promise.all([
+  const [{ data: liberada }, categorias, itens, bairros] = await Promise.all([
+    supabase.rpc("empresa_liberada", { p_empresa: empresa.id }),
     supabase.from("categorias").select("id, nome").eq("empresa_id", empresa.id).eq("ativo", true).order("ordem"),
     supabase.from("itens").select("id, categoria_id, nome, descricao, preco, foto_url, disponivel, destaque")
       .eq("empresa_id", empresa.id).order("ordem"),
     supabase.from("bairros").select("id, nome, taxa, pedido_minimo").eq("empresa_id", empresa.id).eq("ativo", true).order("nome"),
   ]);
+  if (!liberada) return <Indisponivel nome={empresa.nome} />; // teste grátis vencido / plano encerrado
 
   return (
     <Cardapio

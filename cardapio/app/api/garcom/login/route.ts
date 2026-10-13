@@ -21,13 +21,12 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const { data: membro } = await admin
     .from("membros")
-    .select("user_id, empresas!inner(ativo)")
+    .select("user_id, empresa_id")
     .eq("id", membro_id)
     .eq("papel", "garcom")
     .eq("ativo", true)
-    .eq("empresas.ativo", true)
     .maybeSingle();
-  if (!membro) return negado();
+  if (!membro || !(await admin.rpc("empresa_liberada", { p_empresa: membro.empresa_id })).data) return negado();
 
   const { data: u } = await admin.auth.admin.getUserById(membro.user_id);
   if (!u.user?.email) return negado();

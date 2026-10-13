@@ -83,7 +83,8 @@ async function mensagem(admin: SupabaseClient, conexao: Conexao, m: Msg, origem:
   }
 
   const { data: empresa } = await admin.from("empresas").select(CAMPOS_EMPRESA).eq("id", empresaId).single();
-  if (!empresa?.ativo) return; // empresa desativada: bot fica quieto
+  // Empresa desativada ou teste vencido: bot fica quieto.
+  if (!empresa || !(await admin.rpc("empresa_liberada", { p_empresa: empresaId })).data) return;
 
   let texto = m.message?.conversation ?? m.message?.extendedTextMessage?.text ?? m.message?.imageMessage?.caption ?? "";
   if (!texto && m.message?.audioMessage && cfg.ia_ativa) {

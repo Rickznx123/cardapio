@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { toast } from "@/components/toast";
+import { situacaoPlano } from "@/lib/planos";
 import { Bairros } from "./bairros";
 import { EditorCardapio } from "./cardapio/editor";
 import { Gerais } from "./config/gerais";
@@ -18,14 +19,14 @@ import { type Empresa, InfoNegocio } from "./configuracoes";
 import { Equipe } from "./equipe";
 import { Mesas } from "./mesas";
 import { Pedidos } from "./pedidos";
+import { Assinar, Checklist, FaixaTrial, TesteEncerrado } from "./plano";
 import { QrModal } from "./qr";
-import { supabase } from "./ui";
+import { carregarSessao, type Papel, supabase } from "./ui";
 import { Caixas } from "./vendas/caixas";
 import { Historico } from "./vendas/historico";
 import { Relatorios } from "./vendas/relatorios";
 import { WhatsApp } from "./whatsapp";
 
-type Papel = "dono" | "caixa";
 type Item = { id: string; nome: string; Icone: typeof Menu; papeis: readonly Papel[] };
 type Grupo = { grupo: string; Icone: typeof Menu; itens: Item[] };
 const TODOS = ["dono", "caixa"] as const;
@@ -64,23 +65,16 @@ export default function Painel() {
   const [secao, setSecao] = useState<string>(() => secaoDaUrl() ?? "pedidos");
   const [menu, setMenu] = useState(false);
   const [qr, setQr] = useState(false);
+  const [plano, setPlano] = useState<ReturnType<typeof situacaoPlano> | null>(null);
+  const [assinar, setAssinar] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return router.replace("/login");
-      // shortcut: membro de várias empresas vê só a primeira; adicionar seletor quando houver esse caso.
-      const { data } = await supabase
-        .from("membros")
-        .select("papel, empresas(*)")
-        .eq("user_id", user.id)
-        .in("papel", ["dono", "caixa"])
-        .eq("ativo", true)
-        .limit(1)
-        .maybeSingle();
-      if (data) setPapel(data.papel as Papel);
-      setEmpresa((data?.empresas as unknown as Empresa) ?? null);
-    })();
+    carregarSessao().then((s) => {
+      if (!s) return router.replace("/login");
+      setPapel(s.papel);
+      setEmpresa(s.empresa);
+      if (s.empresa) setPlano(situacaoPlano(s.empresa, Date.now()));
+    });
   }, [router]);
 
   function ir(id: string) {
@@ -117,6 +111,8 @@ export default function Painel() {
     );
   }
 
+  if (plano && !plano.liberada) return <TesteEncerrado empresa={empresa} sair={sair} />;
+
   const permitido = (i: Item) => i.papeis.includes(papel);
   const atual = ITENS.find((i) => i.id === secao && permitido(i)) ?? ITENS[0];
   const menuLateral = (
@@ -147,6 +143,9 @@ export default function Painel() {
           </span>
         </header>
 
+        {plano?.trial && <FaixaTrial dias={plano.diasRestantes ?? 0} assinar={() => setAssinar(true)} />}
+        {papel === "dono" && <Checklist empresa={empresa} />}
+
         {/* Pedidos fica sempre montado: Realtime, alerta e impressão seguem rodando nas outras seções. */}
         <Pedidos equipe={{ empresa_id: empresa.id, nome: empresa.nome, formas, config, virada }} visivel={atual.id === "pedidos"} />
 
@@ -171,6 +170,7 @@ export default function Painel() {
       </div>
 
       {menu && <Modal titulo={empresa.nome} fechar={() => setMenu(false)}>{menuLateral}</Modal>}
+      {assinar && <Assinar empresa={empresa} fechar={() => setAssinar(false)} />}
       {qr && <QrModal slug={empresa.slug} nome={empresa.nome} fechar={() => setQr(false)} />}
     </div>
   );

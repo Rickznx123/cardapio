@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PRODUTO } from "@/lib/marca";
 import { CONTATO, FORO, OPERADORA } from "../dados";
 
-export const metadata: Metadata = { title: "Termos de uso · Cardápio Digital" };
+export const metadata: Metadata = { title: `Termos de uso · ${PRODUTO}` };
 
 export default function Termos() {
   return (
@@ -11,7 +12,7 @@ export default function Termos() {
       <p className="text-sm text-neutral-500">Última atualização: 13 de outubro de 2026</p>
 
       <p>
-        Estes termos regem o uso do Cardápio Digital, plataforma fornecida por {OPERADORA} (&quot;plataforma&quot;) para que
+        Estes termos regem o uso do {PRODUTO}, plataforma fornecida por {OPERADORA} (&quot;plataforma&quot;) para que
         restaurantes, lanchonetes e similares (&quot;restaurantes&quot;) publiquem seu cardápio e recebam pedidos de seus
         clientes (&quot;consumidores&quot;). Ao usar o serviço, você concorda com estes termos e com a{" "}
         <Link href="/privacidade" className="font-medium text-rose-700 underline">Política de privacidade</Link>.
