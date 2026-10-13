@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bike, ChevronLeft, Store } from "lucide-react";
 import { LinhaEditor } from "@/components/linha";
+import { AceiteLegal } from "@/components/links-legais";
 import { CampoTroco, EscolhaPagamento, trocoInvalido, trocoNumero } from "@/components/pagamento";
 import { gravar } from "@/lib/armazenado";
 import { mascaraTelefone } from "@/lib/telefone";
@@ -208,6 +209,7 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
             </p>
           )}
           {erro && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{erro}</p>}
+          {etapa === 2 && <AceiteLegal />}
           <button disabled={enviando || (etapa > 0 && faltaMinimo > 0) || pagamentoPendente}
             className="flex h-14 w-full items-center justify-between rounded-2xl bg-(--cor) px-5 text-lg font-semibold text-(--cor-texto) disabled:opacity-50">
             <span>{etapa === 0 ? "Continuar" : etapa === 1 ? "Revisar pedido" : enviando ? "Enviando…" : "Confirmar pedido"}</span>

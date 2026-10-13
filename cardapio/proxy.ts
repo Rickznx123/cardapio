@@ -23,7 +23,7 @@ export async function proxy(request: NextRequest) {
   // Valida o JWT e renova a sessão (grava cookies novos via setAll).
   const { data } = await supabase.auth.getClaims();
 
-  if (!data?.claims && /^\/painel(\/|$)/.test(request.nextUrl.pathname)) {
+  if (!data?.claims && /^\/(painel|superadmin)(\/|$)/.test(request.nextUrl.pathname)) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
   return response;
@@ -31,5 +31,5 @@ export async function proxy(request: NextRequest) {
 
 // Só nas áreas da equipe; o cardápio público não paga o custo do auth.
 export const config = {
-  matcher: ["/painel/:path*", "/:slug/garcom/:path*", "/login", "/api/:path*"],
+  matcher: ["/painel/:path*", "/superadmin","/:slug/garcom/:path*", "/login", "/api/:path*"],
 };

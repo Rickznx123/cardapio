@@ -58,7 +58,10 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="p-6 text-center text-sm text-neutral-500">© Cardápio Digital</footer>
+      <footer className="p-6 text-center text-sm text-neutral-500">
+        © Cardápio Digital · <Link href="/termos" className="hover:underline">Termos de uso</Link> ·{" "}
+        <Link href="/privacidade" className="hover:underline">Privacidade</Link>
+      </footer>
     </div>
   );
 }

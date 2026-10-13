@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Bike, Clock, CreditCard, Info, List, MapPin, MessageCircle, RotateCcw, Search, ShoppingBag, Star, Store, Timer, X,
 } from "lucide-react";
+import { RodapeLegal } from "@/components/links-legais";
 import { Modal } from "@/components/modal";
 import { useArmazenado } from "@/lib/armazenado";
 import { varsCor } from "@/lib/cor";
@@ -111,6 +112,7 @@ export function Cardapio({ empresa, categorias, itens, bairros }: Props) {
               {!comItens.length && <p className="p-8 text-center text-neutral-500">Cardápio em preparação. Volte em breve!</p>}
             </>
           )}
+          <RodapeLegal />
         </main>
       )}
 

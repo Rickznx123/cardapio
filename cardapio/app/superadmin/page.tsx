@@ -1,0 +1,127 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { ExternalLink, Plus, ShieldCheck } from "lucide-react";
+import { Modal } from "@/components/modal";
+import { toast } from "@/components/toast";
+import { botao, card, input, rotulo } from "../painel/ui";
+
+type Empresa = {
+  id: string; nome: string; slug: string; ativo: boolean; created_at: string; pedidos_30d: number; dono_email: string | null;
+};
+
+async function api(metodo: "GET" | "POST" | "PATCH", corpo?: object) {
+  const r = await fetch("/api/superadmin", {
+    method: metodo, headers: { "Content-Type": "application/json" }, body: corpo && JSON.stringify(corpo),
+  });
+  const j = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, j };
+}
+
+// Super admin: só ver dados, criar empresa + dono e ativar/desativar. Acesso checado no server (SUPERADMIN_EMAILS).
+export default function Superadmin() {
+  const [empresas, setEmpresas] = useState<Empresa[] | null | undefined>();
+  const [criando, setCriando] = useState(false);
+  const [versao, setVersao] = useState(0);
+  const recarregar = useCallback(() => setVersao((v) => v + 1), []);
+
+  useEffect(() => {
+    api("GET").then(({ ok, j }) => setEmpresas(ok ? j : null));
+  }, [versao]);
+
+  async function alternar(e: Empresa) {
+    if (e.ativo && !confirm(`Desativar ${e.nome}? O cardápio fica indisponível e o painel bloqueado.`)) return;
+    const { ok, j } = await api("PATCH", { empresa_id: e.id, ativo: !e.ativo });
+    if (!ok) return toast.erro(j.erro ?? "Erro");
+    toast.ok(e.ativo ? "Empresa desativada" : "Empresa ativada");
+    recarregar();
+  }
+
+  if (empresas === undefined) return <p className="p-6">Carregando…</p>;
+  if (empresas === null) {
+    return (
+      <main className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+        <h1 className="text-xl font-bold">Sem acesso</h1>
+        <p className="text-neutral-500">Entre com uma conta de administrador da plataforma.</p>
+        <Link href="/login" className={botao}>Entrar</Link>
+      </main>
+    );
+  }
+
+  const ativas = empresas.filter((e) => e.ativo).length;
+  return (
+    <main className="mx-auto w-full max-w-5xl space-y-4 p-4 md:p-8">
+      <header className="flex flex-wrap items-center gap-3">
+        <ShieldCheck className="size-7 text-rose-600" />
+        <div className="mr-auto">
+          <h1 className="text-2xl font-bold">Super admin</h1>
+          <p className="text-sm text-neutral-500">{empresas.length} empresas · {ativas} ativas</p>
+        </div>
+        <button onClick={() => setCriando(true)} className={botao}><Plus className="size-5" /> Nova empresa</button>
+      </header>
+
+      <ul className={`${card} divide-y divide-neutral-200 p-0 dark:divide-neutral-800`}>
+        {empresas.map((e) => (
+          <li key={e.id} className={`flex flex-wrap items-center gap-x-4 gap-y-2 p-4 ${e.ativo ? "" : "opacity-60"}`}>
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-semibold">{e.nome}</p>
+              <p className="truncate text-sm text-neutral-500">
+                /{e.slug}{e.dono_email ? ` · ${e.dono_email}` : ""} · criada em {new Date(e.created_at).toLocaleDateString("pt-BR")}
+              </p>
+            </div>
+            <p className="text-sm tabular-nums"><b>{e.pedidos_30d}</b> pedidos em 30 dias</p>
+            <Link href={`/${e.slug}`} target="_blank" aria-label={`Abrir cardápio de ${e.nome}`}
+              className="flex size-10 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+              <ExternalLink className="size-5" />
+            </Link>
+            <button role="switch" aria-checked={e.ativo} aria-label={`${e.nome} ativa`} onClick={() => alternar(e)}
+              className={`flex h-7 w-12 shrink-0 items-center rounded-full p-1 ${e.ativo ? "justify-end bg-emerald-600" : "justify-start bg-neutral-300 dark:bg-neutral-700"}`}>
+              <span className="size-5 rounded-full bg-white shadow" />
+            </button>
+          </li>
+        ))}
+        {!empresas.length && <li className="p-6 text-center text-neutral-500">Nenhuma empresa ainda.</li>}
+      </ul>
+
+      {criando && <NovaEmpresa fechar={() => setCriando(false)} criada={() => { setCriando(false); recarregar(); }} />}
+    </main>
+  );
+}
+
+function NovaEmpresa({ fechar, criada }: { fechar: () => void; criada: () => void }) {
+  const [enviando, setEnviando] = useState(false);
+
+  async function criar(f: FormData) {
+    setEnviando(true);
+    const { ok, j } = await api("POST", Object.fromEntries(f));
+    setEnviando(false);
+    if (!ok) return toast.erro(j.erro ?? "Erro ao criar");
+    toast.ok("Empresa criada. Passe o e-mail e a senha provisória ao dono.");
+    criada();
+  }
+
+  return (
+    <Modal titulo="Nova empresa" fechar={fechar}>
+      <form onSubmit={(e) => { e.preventDefault(); criar(new FormData(e.currentTarget)); }} className="space-y-3 p-5">
+        <label className="block"><span className={rotulo}>Nome da empresa</span>
+          <input name="nome" required className={input} />
+        </label>
+        <label className="block"><span className={rotulo}>Endereço do cardápio (slug)</span>
+          <input name="slug" required pattern="[a-z0-9\-]{3,40}" title="3 a 40 caracteres: letras minúsculas, números e hífen"
+            className={input} />
+        </label>
+        <label className="block"><span className={rotulo}>Nome do dono</span>
+          <input name="dono_nome" required className={input} />
+        </label>
+        <label className="block"><span className={rotulo}>E-mail do dono</span>
+          <input name="email" type="email" required autoComplete="off" className={input} />
+        </label>
+        <label className="block"><span className={rotulo}>Senha provisória (mín. 8)</span>
+          <input name="senha" required minLength={8} autoComplete="new-password" className={input} />
+        </label>
+        <button disabled={enviando} className={`${botao} w-full`}>{enviando ? "Criando…" : "Criar empresa e dono"}</button>
+      </form>
+    </Modal>
+  );
+}

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { createPublicClient } from "@/lib/supabase/server";
+import { createAdminClient, createPublicClient } from "@/lib/supabase/server";
 import type { BairroPublico, CategoriaPublica, EmpresaPublica, ItemPublico } from "@/lib/tipos";
 import { Cardapio } from "./cardapio";
 
@@ -22,7 +22,12 @@ async function Conteudo({ params }: { params: Promise<{ slug: string }> }) {
     .eq("slug", slug)
     .eq("ativo", true)
     .maybeSingle<EmpresaPublica>();
-  if (!empresa) notFound();
+  if (!empresa) {
+    // Anon não lê empresa inativa (RLS): confere no server se existe para mostrar "indisponível" em vez de 404.
+    const { data: inativa } = await createAdminClient().from("empresas").select("nome").eq("slug", slug).maybeSingle();
+    if (!inativa) notFound();
+    return <Indisponivel nome={inativa.nome} />;
+  }
 
   const [categorias, itens, bairros] = await Promise.all([
     supabase.from("categorias").select("id, nome").eq("empresa_id", empresa.id).eq("ativo", true).order("ordem"),
@@ -38,6 +43,15 @@ async function Conteudo({ params }: { params: Promise<{ slug: string }> }) {
       itens={(itens.data ?? []) as ItemPublico[]}
       bairros={(bairros.data ?? []) as BairroPublico[]}
     />
+  );
+}
+
+function Indisponivel({ nome }: { nome: string }) {
+  return (
+    <main className="flex flex-1 flex-col items-center justify-center gap-2 bg-neutral-50 p-6 text-center text-neutral-900">
+      <h1 className="text-2xl font-bold">{nome}</h1>
+      <p className="text-neutral-600">Este cardápio está indisponível no momento.</p>
+    </main>
   );
 }
 

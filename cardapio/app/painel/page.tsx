@@ -105,6 +105,17 @@ export default function Painel() {
 
   if (empresa === undefined) return <p className="p-6">Carregando…</p>;
   if (empresa === null) return <p className="p-6">Este usuário não é dono nem caixa de nenhuma empresa ativa.</p>;
+  if (!empresa.ativo) {
+    return (
+      <main className="flex flex-1 flex-col items-center justify-center gap-3 bg-neutral-50 p-6 text-center dark:bg-neutral-950">
+        <h1 className="text-xl font-bold">{empresa.nome}: conta desativada</h1>
+        <p className="max-w-sm text-neutral-600 dark:text-neutral-400">
+          O painel e o cardápio estão bloqueados. Fale com o suporte da plataforma para reativar.
+        </p>
+        <button onClick={sair} className="h-11 rounded-lg border border-neutral-300 px-4 font-medium dark:border-neutral-700">Sair</button>
+      </main>
+    );
+  }
 
   const permitido = (i: Item) => i.papeis.includes(papel);
   const atual = ITENS.find((i) => i.id === secao && permitido(i)) ?? ITENS[0];

@@ -41,6 +41,7 @@ Interface 100% em português (pt-BR), valores em R$.
   Utilitários em `lib/horarios.ts` (fuso `America/Cuiaba`): `abertoAgora` (conta a madrugada do turno de ontem), dia operacional.
   Informativo: não abre/fecha a loja; o bot do WhatsApp responde "ausência" fora do horário.
 - Dia operacional: termina às `empresas.virada_dia` (default 05:00). "Hoje" dos Pedidos, Histórico e Relatórios (`p_virada`) usam isso.
+- Empresa inativa: cardápio mostra "indisponível" (checagem server com service role) e o painel bloqueia com aviso.
 - Status `saiu` (saiu para entrega) só em pedidos de entrega, entre `pronto` e `entregue`.
 - Pagar sem caixa aberto é barrado no banco (trigger `pedidos_caixa`), inclusive via `fechar_comanda`.
 
@@ -50,7 +51,10 @@ Interface 100% em português (pt-BR), valores em R$.
 | `/` | visitante | landing do produto + "Entrar" |
 | `/[slug]` | cliente | cardápio: capa, informações, busca, último pedido (repetir), carrinho, checkout com pagamento/troco |
 | `/[slug]/pedido/[id]` | cliente | confirmação via RPC `ver_pedido_publico` (status atualiza a cada 20s) + botão WhatsApp |
-| `/login` | dono/caixa | login por e-mail/senha → `/painel` |
+| `/login` | dono/caixa | login por e-mail/senha → `/painel`; "Esqueci minha senha" (`resetPasswordForEmail`) |
+| `/redefinir-senha` | dono/caixa | destino do link de redefinição: troca o `?code=` por sessão e grava a nova senha |
+| `/superadmin` + `/api/superadmin` | plataforma | só e-mails de `SUPERADMIN_EMAILS` (checado no server): lista empresas (RPC `superadmin_empresas`, service role), cria empresa + dono, ativa/desativa. Sem "entrar como" |
+| `/termos`, `/privacidade` | todos | textos legais (dados da operadora em `app/(legal)/dados.tsx`); links no rodapé do cardápio e no checkout |
 | `/painel` | dono/caixa | painel unificado (substitui `/admin` e `/balcao`); seção na URL `?secao=`. Sidebar com grupos: Pedidos · Vendas ▸ (Histórico de pedidos, Caixas, Relatórios) · Cardápio (editor "editar no lugar", @dnd-kit) · Mesas · Entrega · Configurações ▸ (Gerais, Métodos de pagamento, Info do negócio, Equipe e funções, Impressoras e tickets). Caixa vê Pedidos e Vendas. Rodapé: loja aberta/fechada (dono e caixa, RPC `alternar_loja`), ver cardápio, QR Code |
 | `PATCH /api/garcom` | dono | troca PIN do garçom / senha do caixa |
 | `/admin`, `/balcao`, `/balcao/configurar`, `/painel/impressao` | — | redirects (next.config) para `/painel` e `/painel?secao=impressao` |
@@ -108,3 +112,4 @@ O garçom escolhe o nome e digita o PIN; `/api/garcom/login` busca o e-mail com 
 - `008_whatsapp.sql`: status `saiu`; trigger `pedidos_caixa` exige caixa aberto; `whatsapp_conexoes`, `bot_mensagens`,
   `bot_config`, `bot_conversas`, `whatsapp_eventos` (RLS: dono lê/edita conexão, mensagens e config; resto só service role)
 - `009_horarios.sql`: converte `horarios` para lista de turnos por dia; `empresas.virada_dia`; `relatorio_vendas` ganha `p_virada`
+- `010_superadmin.sql`: slugs `superadmin`, `termos`, `privacidade`, `redefinir-senha` reservados; RPC `superadmin_empresas` (só service role)

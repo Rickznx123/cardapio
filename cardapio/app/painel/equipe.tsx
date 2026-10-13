@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, KeyRound, Minus, UserPlus } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { toast } from "@/components/toast";
-import { Ativo, atualizar, botao, card, input, rotulo, useLista } from "./ui";
+import { Ativo, atualizar, botao, card, input, rotulo, supabase, useLista } from "./ui";
 
 type Membro = { id: string; nome: string; papel: "dono" | "garcom" | "caixa"; ativo: boolean };
 
@@ -113,8 +113,41 @@ export function Equipe({ empresaId }: { empresaId: string }) {
         </table>
       </section>
 
+      <MinhaSenha />
       {trocando && <TrocarSegredo membro={trocando} fechar={() => setTrocando(null)} />}
     </div>
+  );
+}
+
+// Dono troca a própria senha (sessão atual).
+function MinhaSenha() {
+  const [enviando, setEnviando] = useState(false);
+
+  async function salvar(form: HTMLFormElement) {
+    const f = new FormData(form);
+    const senha = String(f.get("senha"));
+    if (senha !== f.get("confirmar")) return toast.erro("As senhas não conferem");
+    setEnviando(true);
+    const { error } = await supabase.auth.updateUser({ password: senha });
+    setEnviando(false);
+    if (error) return toast.erro(error.code === "same_password" ? "Use uma senha diferente da atual" : error.message);
+    toast.ok("Sua senha foi alterada");
+    form.reset();
+  }
+
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); salvar(e.currentTarget); }} className={`${card} space-y-3`}>
+      <h2 className="flex items-center gap-2 text-lg font-semibold"><KeyRound className="size-5" /> Sua senha</h2>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block"><span className={rotulo}>Nova senha (mín. 8)</span>
+          <input name="senha" type="password" required minLength={8} autoComplete="new-password" className={input} />
+        </label>
+        <label className="block"><span className={rotulo}>Repita a nova senha</span>
+          <input name="confirmar" type="password" required minLength={8} autoComplete="new-password" className={input} />
+        </label>
+      </div>
+      <button disabled={enviando} className={botao}>{enviando ? "Salvando…" : "Trocar minha senha"}</button>
+    </form>
   );
 }
 
