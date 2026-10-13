@@ -48,7 +48,7 @@ export async function textoAtivo(admin: SupabaseClient, empresaId: string, tipo:
 }
 
 export const CAMPOS_EMPRESA =
-  "id, nome, slug, aberto, endereco, horarios, horario_texto, tempo_entrega_min, tempo_entrega_max, tempo_retirada, aceita_entrega, aceita_retirada, formas_pagamento";
+  "id, nome, slug, ativo, aberto, endereco, horarios, horario_texto, tempo_entrega_min, tempo_entrega_max, tempo_retirada, aceita_entrega, aceita_retirada, formas_pagamento";
 
 // ---------- IA (OpenAI) ----------
 const MODELO = "gpt-4o-mini";
