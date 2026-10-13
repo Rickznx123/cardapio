@@ -60,7 +60,7 @@ Interface 100% em português (pt-BR), valores em R$.
 | `/redefinir-senha` | dono/caixa | destino do link de redefinição: troca o `?code=` por sessão e grava a nova senha |
 | `/superadmin` + `/api/superadmin` | plataforma | só e-mails de `SUPERADMIN_EMAILS` (checado no server): lista empresas (RPC `superadmin_empresas`, service role), cria empresa + dono, ativa/desativa. Sem "entrar como" |
 | `/termos`, `/privacidade` | todos | textos legais (dados da operadora em `app/(legal)/dados.tsx`); links no rodapé do cardápio e no checkout |
-| `/painel` | dono/caixa | painel unificado (substitui `/admin` e `/balcao`); seção na URL `?secao=`. Sidebar com grupos: Pedidos · Vendas ▸ (Histórico de pedidos, Caixas, Relatórios) · Cardápio (editor "editar no lugar", @dnd-kit) · Mesas · Entrega · Configurações ▸ (Gerais, Métodos de pagamento, Info do negócio, Equipe e funções, Impressoras e tickets). Caixa vê Pedidos e Vendas. Rodapé: loja aberta/fechada (dono e caixa, RPC `alternar_loja`), ver cardápio, QR Code |
+| `/painel` | dono/caixa | painel unificado (substitui `/admin` e `/balcao`); seção na URL `?secao=`. Sidebar com grupos: Pedidos · Vendas ▸ (Histórico de pedidos, Caixas, Relatórios) · Cardápio (editor "editar no lugar", @dnd-kit) · Mesas · Entrega · Clientes (inclui Recuperador) · Cupons · Configurações ▸ (Gerais, Métodos de pagamento, Info do negócio, Equipe e funções, Impressoras e tickets). Caixa vê Pedidos e Vendas. Rodapé: loja aberta/fechada (dono e caixa, RPC `alternar_loja`), ver cardápio, QR Code |
 | `PATCH /api/garcom` | dono | troca PIN do garçom / senha do caixa |
 | `/admin`, `/balcao`, `/balcao/configurar`, `/painel/impressao` | — | redirects (next.config) para `/painel` e `/painel?secao=impressao` |
 | `/[slug]/garcom` | garçom | PWA: login nome+PIN; grade de mesas → comanda → adicionar itens (obs. por item) → enviar |
@@ -71,6 +71,7 @@ Interface 100% em português (pt-BR), valores em R$.
 | `POST /api/whatsapp/teste` | dono | envia mensagem de teste |
 | `POST /api/whatsapp/webhook?secret=` | Evolution | mensagens recebidas → chatbot (menu 1–4, ausência, IA OpenAI) |
 | `POST /api/whatsapp/pedido?secret=` | Supabase DB Webhook | insert/update em `pedidos` → aviso de status ao cliente (só web/balcão) |
+| `POST /api/recuperador/processar?secret=` | Supabase pg_cron/pg_net | processa até 3 ofertas por empresa conectada; autentica com `CRON_SECRET` |
 
 ## Login do garçom
 Dono cadastra o garçom: cria usuário no Supabase Auth com e-mail gerado
@@ -102,6 +103,8 @@ O garçom escolhe o nome e digita o PIN; `/api/garcom/login` busca o e-mail com 
   Regra de resposta em `lib/whatsapp/decidir.ts` (teste: `npm test`).
 - Webhooks respondem 200 e processam no `after()`. Idempotência em `whatsapp_eventos` (`msg:`/`bot:`/`pedido:`).
 - Mensagem `fromMe` que não foi o bot = atendente respondeu → pausa o bot com o contato.
+- `SAIR`/`PARAR` recebido no webhook marca `clientes.optout_ofertas` e confirma a remoção.
+- O recuperador requer `CRON_SECRET` no server e um job pg_cron/pg_net no Supabase (10 min; janela padrão 10:00–20:00 `America/Cuiaba`).
 
 ## Migrations (rodar em ordem no SQL Editor, em bancos já criados)
 - `002_garcom.sql`: RPC `listar_garcons`
@@ -121,3 +124,5 @@ O garçom escolhe o nome e digita o PIN; `/api/garcom/login` busca o e-mail com 
 - `011_trial.sql`: `plano_status`/`trial_ate`/`origem_cadastro` (existentes viram `ativo`); `empresa_liberada`; trigger
   `pedidos_empresa_liberada`; `listar_garcons` usa liberada; slugs `cadastro`/`opengraph-image` reservados; `cadastro_tentativas`;
   `superadmin_empresas` devolve plano
+- `012_clientes.sql`: clientes e backfill; cupons e desconto em pedidos/RPCs/relatórios; configuração, envios e métricas do recuperador.
+  Ativar `pg_cron` e `pg_net` e agendar `POST /api/recuperador/processar?secret=CRON_SECRET` a cada 10 min; criar `CRON_SECRET` no Vercel.

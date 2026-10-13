@@ -5,17 +5,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Armchair, BarChart3, Bike, ChevronDown, ClipboardList, CreditCard, ExternalLink, History, Info, LogOut, Menu, MessageCircle, Printer, QrCode,
-  Settings, SlidersHorizontal, TrendingUp, Users, UtensilsCrossed, Wallet,
+  Settings, SlidersHorizontal, TicketPercent, TrendingUp, Users, UtensilsCrossed, Wallet,
 } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { toast } from "@/components/toast";
 import { situacaoPlano } from "@/lib/planos";
 import { Bairros } from "./bairros";
 import { EditorCardapio } from "./cardapio/editor";
+import { Clientes } from "./clientes";
 import { Gerais } from "./config/gerais";
 import { Impressao } from "./config/impressao";
 import { Pagamentos } from "./config/pagamentos";
 import { type Empresa, InfoNegocio } from "./configuracoes";
+import { Cupons } from "./cupons";
 import { Equipe } from "./equipe";
 import { Mesas } from "./mesas";
 import { Pedidos } from "./pedidos";
@@ -43,6 +45,8 @@ const MENU: (Item | Grupo)[] = [
   { id: "cardapio", nome: "Cardápio", Icone: UtensilsCrossed, papeis: DONO },
   { id: "mesas", nome: "Mesas", Icone: Armchair, papeis: DONO },
   { id: "entrega", nome: "Entrega", Icone: Bike, papeis: DONO },
+  { id: "clientes", nome: "Clientes", Icone: Users, papeis: DONO },
+  { id: "cupons", nome: "Cupons", Icone: TicketPercent, papeis: DONO },
   { id: "whatsapp", nome: "WhatsApp", Icone: MessageCircle, papeis: DONO },
   { grupo: "Configurações", Icone: Settings, itens: [
     { id: "gerais", nome: "Gerais", Icone: SlidersHorizontal, papeis: DONO },
@@ -119,7 +123,7 @@ export default function Painel() {
     <MenuLateral empresa={empresa} papel={papel} atual={atual.id} permitido={permitido} ir={ir}
       alternarLoja={alternarLoja} abrirQr={() => { setMenu(false); setQr(true); }} sair={sair} />
   );
-  const largo = ["cardapio", "historico", "relatorios", "impressao", "whatsapp"].includes(atual.id);
+  const largo = ["cardapio", "historico", "relatorios", "impressao", "whatsapp", "clientes", "cupons"].includes(atual.id);
   const props = { empresa, mudou: setEmpresa };
   const formas = empresa.formas_pagamento;
   const config = empresa.config_impressao;
@@ -159,6 +163,8 @@ export default function Painel() {
             {atual.id === "cardapio" && <EditorCardapio {...props} />}
             {atual.id === "mesas" && <Mesas empresaId={empresa.id} />}
             {atual.id === "entrega" && <Bairros empresaId={empresa.id} />}
+            {atual.id === "clientes" && <Clientes empresaId={empresa.id} empresaNome={empresa.nome} />}
+            {atual.id === "cupons" && <Cupons empresaId={empresa.id} />}
             {atual.id === "whatsapp" && <WhatsApp empresa={empresa} />}
             {atual.id === "gerais" && <Gerais {...props} />}
             {atual.id === "pagamentos" && <Pagamentos {...props} />}
@@ -247,4 +253,3 @@ function MenuLateral({ empresa, papel, atual, permitido, ir, alternarLoja, abrir
     </div>
   );
 }
-

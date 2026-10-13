@@ -17,7 +17,8 @@ const code = "block overflow-x-auto whitespace-pre rounded-lg bg-neutral-100 p-3
 const exemplo = (): PedidoBalcao => ({
   id: "teste", numero: 123, tipo: "entrega", status: "novo", origem: "web",
   cliente_nome: "Cliente Teste", cliente_telefone: "(66) 99999-0000", endereco: "Rua das Flores, 100", bairro_nome: "Centro",
-  taxa_entrega: 5, subtotal: 54.8, total: 59.8, observacao: "Sem talher",
+  taxa_entrega: 5, subtotal: 54.8, total: 49.8, desconto: 10, cupom_id: "cupom-teste",
+  cupons: { codigo: "BEMVINDO" }, observacao: "Sem talher",
   impresso_em: null, created_at: new Date().toISOString(), comanda_id: null,
   forma_pagamento: "dinheiro", troco_para: 100, pago: false, pago_em: null,
   pedido_itens: [

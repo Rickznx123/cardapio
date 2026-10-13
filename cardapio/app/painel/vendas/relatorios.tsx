@@ -14,6 +14,7 @@ const supabase = createClient();
 
 type Relatorio = {
   faturamento: number; pedidos: number; ticket_medio: number; cancelados: number; valor_cancelado: number;
+  descontos: number; pedidos_com_cupom: number;
   por_forma: { forma: FormaPagamento | "a_definir"; valor: number; pedidos: number }[];
   por_tipo: { tipo: "mesa" | "entrega" | "retirada"; valor: number; pedidos: number }[];
   por_origem: { origem: keyof typeof ORIGEM; valor: number; pedidos: number }[];
@@ -82,6 +83,7 @@ export function Relatorios({ empresaId, virada }: { empresaId: string; virada: s
       [],
       ["Faturamento", n(rel.faturamento)], ["Pedidos", rel.pedidos], ["Ticket médio", n(rel.ticket_medio)],
       ["Cancelados", rel.cancelados], ["Valor cancelado", n(rel.valor_cancelado)],
+      ["Descontos", n(rel.descontos)], ["Pedidos com cupom", rel.pedidos_com_cupom],
       [], ["Forma de pagamento", "Pedidos", "Valor"], ...rel.por_forma.map((f) => [ROTULO_FORMA(f.forma), f.pedidos, n(f.valor)]),
       [], ["Tipo", "Pedidos", "Valor"], ...rel.por_tipo.map((t) => [TIPOS[t.tipo], t.pedidos, n(t.valor)]),
       [], ["Origem", "Pedidos", "Valor"], ...rel.por_origem.map((o) => [ORIGEM[o.origem], o.pedidos, n(o.valor)]),
@@ -129,11 +131,12 @@ export function Relatorios({ empresaId, virada }: { empresaId: string; virada: s
 
       {!rel ? <div className="h-64 animate-pulse rounded-2xl bg-neutral-200 dark:bg-neutral-800" /> : (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <Kpi rotulo="Faturamento" valor={brl(rel.faturamento)} />
             <Kpi rotulo="Pedidos" valor={String(rel.pedidos)} />
             <Kpi rotulo="Ticket médio" valor={brl(rel.ticket_medio)} />
             <Kpi rotulo="Cancelados" valor={String(rel.cancelados)} detalhe={rel.cancelados ? brl(rel.valor_cancelado) : undefined} />
+            <Kpi rotulo="Descontos" valor={brl(Number(rel.descontos))} detalhe={`${rel.pedidos_com_cupom} pedido(s) com cupom`} />
           </div>
 
           {dias.length > 1 && (

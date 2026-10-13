@@ -43,5 +43,6 @@ export type PedidoPublico = {
   numero: number; tipo: "entrega" | "retirada"; status: StatusPedido; bairro_nome: string | null;
   taxa: number; subtotal: number; total: number; created_at: string;
   forma_pagamento: FormaPagamento | null; troco_para: number | null; pago: boolean;
+  desconto: number; cupom: string | null;
   itens: { nome: string; preco: number; quantidade: number; observacao: string | null }[];
 };

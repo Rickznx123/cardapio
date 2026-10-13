@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { abertoAgora, temHorarios } from "@/lib/horarios";
 import { createAdminClient } from "@/lib/supabase/server";
+import { numeroWhats } from "@/lib/telefone";
 import { decidir } from "@/lib/whatsapp/decidir";
 import { baixarMidia, numeroConectado } from "@/lib/whatsapp/evolution";
 import { preencher, variaveisEmpresa } from "@/lib/whatsapp/mensagens";
@@ -69,6 +70,18 @@ async function mensagem(admin: SupabaseClient, conexao: Conexao, m: Msg, origem:
   const telefone = contato.endsWith("@s.whatsapp.net") ? contato.split("@")[0] : contato;
   const empresaId = conexao.empresa_id;
   const agora = new Date();
+  const mensagemRecebida = m.message?.conversation ?? m.message?.extendedTextMessage?.text ?? m.message?.imageMessage?.caption ?? "";
+
+  if (!m.key.fromMe && /^(SAIR|PARAR)[.!?]*$/i.test(mensagemRecebida.trim())) {
+    const tel = numeroWhats(telefone);
+    if (tel) {
+      const { error } = await admin.from("clientes").update({ optout_ofertas: true })
+        .eq("empresa_id", empresaId).eq("telefone", tel);
+      if (error) throw new Error(`Não foi possível registrar o opt-out: ${error.message}`);
+    }
+    await enviar(admin, conexao.instancia, telefone, "Tudo bem! Você não receberá mais ofertas desta loja.");
+    return;
+  }
 
   const [{ data: cfgRow }, { data: conversa }] = await Promise.all([
     admin.from("bot_config").select("*").eq("empresa_id", empresaId).maybeSingle(),
@@ -93,7 +106,7 @@ async function mensagem(admin: SupabaseClient, conexao: Conexao, m: Msg, origem:
 
   const iaAtiva = cfg.ia_ativa && iaDisponivel(); // toggle ligado e chave configurada
   const audio = !!m.message?.audioMessage;
-  let texto = m.message?.conversation ?? m.message?.extendedTextMessage?.text ?? m.message?.imageMessage?.caption ?? "";
+  let texto = mensagemRecebida;
   if (!texto && audio && iaAtiva) {
     const midia = await baixarMidia(conexao.instancia, m.key);
     if (midia.base64) texto = await transcrever(midia.base64, midia.mimetype ?? m.message?.audioMessage?.mimetype);

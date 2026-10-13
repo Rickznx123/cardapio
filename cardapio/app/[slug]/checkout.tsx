@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bike, ChevronLeft, Store } from "lucide-react";
 import { LinhaEditor } from "@/components/linha";
@@ -35,12 +35,84 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
   const [troco, setTroco] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
+  const [cupom, setCupom] = useState("");
+  const [validacaoCupom, setValidacaoCupom] = useState<{ chave: string; ok: boolean; desconto?: number; erro?: string } | null>(null);
+  const autoPreenchimento = useRef<{ telefone: string; nome: string | null; endereco: string | null; bairroId: string | null } | null>(null);
+  const telefoneDigitos = telefone.replace(/\D/g, "");
 
   const bairro = tipo === "entrega" ? bairros.find((b) => b.id === bairroId) : undefined;
   const taxa = bairro?.taxa ?? 0;
   const faltaMinimo = bairro && subtotal < bairro.pedido_minimo ? bairro.pedido_minimo - subtotal : 0;
-  const total = subtotal + taxa;
+  const codigoCupom = cupom.trim().toUpperCase();
+  const chaveValidacao = `${codigoCupom}|${subtotal}|${tipo}|${bairro?.id ?? ""}|${telefone}`;
+  const validacaoAtual = validacaoCupom?.chave === chaveValidacao ? validacaoCupom : null;
+  const desconto = validacaoAtual?.ok ? Math.min(Number(validacaoAtual.desconto ?? 0), subtotal) : 0;
+  const total = subtotal + taxa - desconto;
   const pagamentoPendente = etapa === 2 && (!forma || (forma === "dinheiro" && trocoInvalido(troco, total)));
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const codigo = params.get("cupom");
+    if (!codigo) return;
+    const timer = window.setTimeout(() => setCupom(codigo.toUpperCase()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (telefoneDigitos.length < 10) return;
+    let ativo = true;
+    const timer = setTimeout(() => {
+      createClient().rpc("cliente_por_telefone", { p_empresa_id: empresa.id, p_telefone: telefoneDigitos })
+        .then(({ data, error: erroRpc }) => {
+          if (!ativo) return;
+          if (erroRpc) return setErro(erroRpc.message);
+          const salvo = data as { nome?: string | null; endereco?: string | null; bairro_id?: string | null } | null;
+          if (!salvo) return;
+          setNome((atual) => atual || salvo.nome || "");
+          setEndereco((atual) => atual || salvo.endereco || "");
+          setBairroId((atual) => atual || salvo.bairro_id || "");
+          autoPreenchimento.current = {
+            telefone: telefoneDigitos, nome: salvo.nome ?? null,
+            endereco: salvo.endereco ?? null, bairroId: salvo.bairro_id ?? null,
+          };
+        });
+    }, 350);
+    return () => { ativo = false; clearTimeout(timer); };
+  }, [empresa.id, telefoneDigitos]);
+
+  useEffect(() => {
+    const codigo = codigoCupom;
+    if (!codigo) return;
+    let ativo = true;
+    const timer = setTimeout(() => {
+      createClient().rpc("validar_cupom", {
+        p_empresa_id: empresa.id,
+        p_codigo: codigo,
+        p_subtotal: subtotal,
+        p_tipo: tipo,
+        p_bairro_id: bairro?.id ?? null,
+        p_telefone: telefone || null,
+      }).then(({ data, error: erroRpc }) => {
+        if (!ativo) return;
+        if (erroRpc) return setValidacaoCupom({ chave: chaveValidacao, ok: false, erro: erroRpc.message });
+        setValidacaoCupom({ chave: chaveValidacao, ...(data as { ok: boolean; desconto?: number; erro?: string }) });
+      });
+    }, 300);
+    return () => { ativo = false; clearTimeout(timer); };
+  }, [bairro?.id, chaveValidacao, codigoCupom, empresa.id, subtotal, telefone, tipo]);
+
+  function mudarTelefone(valor: string) {
+    const formatado = mascaraTelefone(valor);
+    const digitos = formatado.replace(/\D/g, "");
+    const anterior = autoPreenchimento.current;
+    if (anterior && anterior.telefone !== digitos) {
+      if (nome === anterior.nome) setNome("");
+      if (endereco === anterior.endereco) setEndereco("");
+      if (bairroId === anterior.bairroId) setBairroId("");
+      autoPreenchimento.current = null;
+    }
+    setTelefone(formatado);
+  }
 
   function voltar() {
     setErro("");
@@ -62,6 +134,7 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
       p_observacao: observacao.trim() || null,
       p_forma_pagamento: forma,
       p_troco_para: forma === "dinheiro" ? trocoNumero(troco) : null,
+      p_cupom: cupom.trim() || null,
     });
     if (error) {
       setEnviando(false);
@@ -128,7 +201,7 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
               <label className="block">
                 <span className="mb-1 block text-sm font-medium">Telefone / WhatsApp</span>
                 <input required type="tel" inputMode="tel" autoComplete="tel" placeholder="(00) 00000-0000"
-                  value={telefone} onChange={(e) => setTelefone(mascaraTelefone(e.target.value))}
+                  value={telefone} onChange={(e) => mudarTelefone(e.target.value)}
                   pattern=".{14,}" title="Informe o telefone com DDD" className={input} />
               </label>
               {tipo === "entrega" ? (
@@ -191,6 +264,15 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
                   placeholder="Ex.: troco para R$ 50, interfone 12…"
                   className="w-full rounded-xl border border-neutral-300 p-4 text-base outline-none focus:border-(--cor) focus:ring-2 focus:ring-(--cor)/30" />
               </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium">Cupom</span>
+                <input value={cupom} onChange={(e) => setCupom(e.target.value.toUpperCase())} maxLength={30}
+                  placeholder="Digite seu cupom" className={input} autoCapitalize="characters" />
+                {validacaoAtual && <p role={validacaoAtual.ok ? "status" : "alert"}
+                  className={`mt-1 text-sm ${validacaoAtual.ok ? "text-emerald-700" : "text-red-700"}`}>
+                  {validacaoAtual.ok ? `Cupom aplicado: −${brl(Number(validacaoAtual.desconto ?? 0))}` : validacaoAtual.erro}
+                </p>}
+              </label>
             </>
           )}
         </div>
@@ -200,7 +282,8 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
             <dl className="space-y-1.5 text-neutral-600">
               <div className="flex justify-between"><dt>Subtotal</dt><dd>{brl(subtotal)}</dd></div>
               {tipo === "entrega" && <div className="flex justify-between"><dt>Taxa de entrega</dt><dd>{bairro ? brl(taxa) : "—"}</dd></div>}
-              <div className="flex justify-between pt-1 text-lg font-bold text-neutral-900"><dt>Total</dt><dd>{brl(subtotal + taxa)}</dd></div>
+              {desconto > 0 && <div className="flex justify-between text-emerald-700"><dt>Desconto {validacaoCupom?.ok ? `(${cupom.trim().toUpperCase()})` : ""}</dt><dd>−{brl(desconto)}</dd></div>}
+              <div className="flex justify-between pt-1 text-lg font-bold text-neutral-900"><dt>Total</dt><dd>{brl(total)}</dd></div>
             </dl>
           )}
           {faltaMinimo > 0 && (
@@ -213,7 +296,7 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
           <button disabled={enviando || (etapa > 0 && faltaMinimo > 0) || pagamentoPendente}
             className="flex h-14 w-full items-center justify-between rounded-2xl bg-(--cor) px-5 text-lg font-semibold text-(--cor-texto) disabled:opacity-50">
             <span>{etapa === 0 ? "Continuar" : etapa === 1 ? "Revisar pedido" : enviando ? "Enviando…" : "Confirmar pedido"}</span>
-            <span>{brl(subtotal + (etapa > 0 ? taxa : 0))}</span>
+            <span>{brl(etapa > 0 ? total : subtotal)}</span>
           </button>
         </footer>
       </form>

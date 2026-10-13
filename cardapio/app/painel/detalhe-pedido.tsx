@@ -20,6 +20,7 @@ export function DetalhePedido({ p }: { p: PedidoBalcao }) {
       <dl className="divide-y divide-neutral-200 text-sm dark:divide-neutral-800">
         <div className={linha}><dt>Subtotal</dt><dd>{brl(p.subtotal)}</dd></div>
         {p.tipo === "entrega" && <div className={linha}><dt>Taxa de entrega</dt><dd>{brl(p.taxa_entrega)}</dd></div>}
+        {p.desconto > 0 && <div className={`${linha} text-emerald-700`}><dt>Cupom {p.cupons?.codigo && `(${p.cupons.codigo})`}</dt><dd>−{brl(p.desconto)}</dd></div>}
         <div className={`${linha} text-base font-bold`}><dt>Total</dt><dd>{brl(p.total)}</dd></div>
         <div className={linha}><dt>Status</dt><dd>{STATUS[p.status]}</dd></div>
         <div className={linha}><dt>Pagamento</dt><dd>{p.forma_pagamento ? FORMAS[p.forma_pagamento] : "A definir"} · {p.pago ? `Pago em ${quando(p.pago_em)}` : "Não pago"}</dd></div>

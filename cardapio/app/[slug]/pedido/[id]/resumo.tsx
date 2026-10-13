@@ -28,6 +28,7 @@ function mensagemWhatsApp(p: PedidoPublico, empresa: string) {
     "",
     `Subtotal: ${brl(p.subtotal)}`,
     ...(p.tipo === "entrega" ? [`Entrega (${p.bairro_nome}): ${brl(p.taxa)}`] : []),
+    ...(p.desconto > 0 ? [`Desconto${p.cupom ? ` (${p.cupom})` : ""}: −${brl(p.desconto)}`] : []),
     `*Total: ${brl(p.total)}*`,
     p.tipo === "entrega" ? "Para entrega" : "Vou retirar no local",
     ...(p.forma_pagamento ? [`Pagamento: ${FORMAS[p.forma_pagamento]}`] : []),
@@ -130,6 +131,7 @@ export function Pedido() {
         <dl className="mt-3 space-y-1 border-t border-neutral-200 pt-3 text-neutral-600">
           <div className="flex justify-between"><dt>Subtotal</dt><dd>{brl(p.subtotal)}</dd></div>
           {p.tipo === "entrega" && <div className="flex justify-between"><dt>Entrega</dt><dd>{brl(p.taxa)}</dd></div>}
+          {p.desconto > 0 && <div className="flex justify-between text-emerald-700"><dt>Cupom {p.cupom && `(${p.cupom})`}</dt><dd>−{brl(p.desconto)}</dd></div>}
           <div className="flex justify-between text-lg font-bold text-neutral-900"><dt>Total</dt><dd>{brl(p.total)}</dd></div>
           {p.forma_pagamento && (
             <div className="flex justify-between pt-1">

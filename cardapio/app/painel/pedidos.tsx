@@ -354,6 +354,9 @@ function LinhaPedido({ p, agora, mudarStatus, cancelar, detalhes, pagar, reimpri
       </div>
       <div className="justify-self-end text-right lg:justify-self-start lg:text-left">
         <p className="text-lg font-bold tabular-nums">{brl(p.total)}</p>
+        {p.desconto > 0 && <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+          Cupom {p.cupons?.codigo ?? ""} · −{brl(p.desconto)}
+        </p>}
         <p className="flex flex-wrap items-center justify-end gap-1 text-xs lg:justify-start">
           <span className={`rounded px-1.5 py-0.5 font-bold ${p.pago ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"}`}>
             {p.pago ? "Pago" : "Não pago"}
