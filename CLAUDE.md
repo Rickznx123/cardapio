@@ -37,6 +37,8 @@ Interface 100% em português (pt-BR), valores em R$.
 - Formas aceitas: `empresas.formas_pagamento` (mín. 1). As RPCs de pedido recusam forma desligada.
 - Reordenar (drag-and-drop) só via RPC `reordenar(tabela, ids[])`, numa transação.
 - Cupom: `config_impressao` (largura 58/80, vias, via da cozinha sem preços, cabeçalho, rodapé) via `cuponsPedido`.
+- Status `saiu` (saiu para entrega) só em pedidos de entrega, entre `pronto` e `entregue`.
+- Pagar sem caixa aberto é barrado no banco (trigger `pedidos_caixa`), inclusive via `fechar_comanda`.
 
 ## Áreas / rotas
 | Rota | Quem usa | O quê |
@@ -52,6 +54,10 @@ Interface 100% em português (pt-BR), valores em R$.
 | `/[slug]/garcom/manifest` | — | manifest do PWA por empresa (`start_url` = `/[slug]/garcom`) |
 | `POST /api/garcom` | dono | cadastra garçom (nome + PIN) ou caixa (nome + e-mail + senha) |
 | `POST /api/garcom/login` | garçom | `{membro_id, pin}` → login no server, grava cookies de sessão |
+| `/api/whatsapp/conexao` | dono | POST conecta (cria instância Evolution + seeds), GET status/QR, DELETE desconecta |
+| `POST /api/whatsapp/teste` | dono | envia mensagem de teste |
+| `POST /api/whatsapp/webhook?secret=` | Evolution | mensagens recebidas → chatbot (menu 1–4, ausência, IA OpenAI) |
+| `POST /api/whatsapp/pedido?secret=` | Supabase DB Webhook | insert/update em `pedidos` → aviso de status ao cliente (só web/balcão) |
 
 ## Login do garçom
 Dono cadastra o garçom: cria usuário no Supabase Auth com e-mail gerado
@@ -76,6 +82,14 @@ O garçom escolhe o nome e digita o PIN; `/api/garcom/login` busca o e-mail com 
 - **Dia 2:** cardápio público + checkout com bairros; app do garçom (PWA)
 - **Dia 3:** painel do balcão realtime, cupom + impressão, testes ponta a ponta, deploy
 
+## WhatsApp (chatbot)
+- Evolution API na VPS, uma instância por empresa (`cardapio-{empresa_id}`), código em `lib/whatsapp/`.
+  Env server only: `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `WHATSAPP_WEBHOOK_SECRET`, `OPENAI_API_KEY`.
+- Textos padrão e variáveis em `lib/whatsapp/mensagens.ts` (seed ao conectar, "restaurar padrão" no painel).
+  Regra de resposta em `lib/whatsapp/decidir.ts` (teste: `npm test`).
+- Webhooks respondem 200 e processam no `after()`. Idempotência em `whatsapp_eventos` (`msg:`/`bot:`/`pedido:`).
+- Mensagem `fromMe` que não foi o bot = atendente respondeu → pausa o bot com o contato.
+
 ## Migrations (rodar em ordem no SQL Editor, em bancos já criados)
 - `002_garcom.sql`: RPC `listar_garcons`
 - `003_dia3.sql`: constraint de slug, RPCs `ver_pedido_publico` e `cancelar_pedido`
@@ -87,3 +101,5 @@ O garçom escolhe o nome e digita o PIN; `/api/garcom/login` busca o e-mail com 
 - `007_vendas_config.sql`: `caixas`, `caixa_movimentos`, `pedidos.caixa_id` + trigger `pedidos_caixa`; RPCs `abrir_caixa`,
   `registrar_movimento`, `fechar_caixa`, `resumo_caixa`, `relatorio_vendas`, `alternar_loja`, `reordenar`; em `empresas`:
   `formas_pagamento`, tempos, `horarios`, `config_impressao`; forma aceita checada em `_criar_pedido_externo`
+- `008_whatsapp.sql`: status `saiu`; trigger `pedidos_caixa` exige caixa aberto; `whatsapp_conexoes`, `bot_mensagens`,
+  `bot_config`, `bot_conversas`, `whatsapp_eventos` (RLS: dono lê/edita conexão, mensagens e config; resto só service role)

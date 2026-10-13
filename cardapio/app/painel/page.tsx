@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Armchair, BarChart3, Bike, ChevronDown, ClipboardList, CreditCard, ExternalLink, History, Info, LogOut, Menu, Printer, QrCode,
+  Armchair, BarChart3, Bike, ChevronDown, ClipboardList, CreditCard, ExternalLink, History, Info, LogOut, Menu, MessageCircle, Printer, QrCode,
   Settings, SlidersHorizontal, TrendingUp, Users, UtensilsCrossed, Wallet,
 } from "lucide-react";
 import { Modal } from "@/components/modal";
@@ -23,6 +23,7 @@ import { supabase } from "./ui";
 import { Caixas } from "./vendas/caixas";
 import { Historico } from "./vendas/historico";
 import { Relatorios } from "./vendas/relatorios";
+import { WhatsApp } from "./whatsapp";
 
 type Papel = "dono" | "caixa";
 type Item = { id: string; nome: string; Icone: typeof Menu; papeis: readonly Papel[] };
@@ -41,6 +42,7 @@ const MENU: (Item | Grupo)[] = [
   { id: "cardapio", nome: "Cardápio", Icone: UtensilsCrossed, papeis: DONO },
   { id: "mesas", nome: "Mesas", Icone: Armchair, papeis: DONO },
   { id: "entrega", nome: "Entrega", Icone: Bike, papeis: DONO },
+  { id: "whatsapp", nome: "WhatsApp", Icone: MessageCircle, papeis: DONO },
   { grupo: "Configurações", Icone: Settings, itens: [
     { id: "gerais", nome: "Gerais", Icone: SlidersHorizontal, papeis: DONO },
     { id: "pagamentos", nome: "Métodos de pagamento", Icone: CreditCard, papeis: DONO },
@@ -110,7 +112,7 @@ export default function Painel() {
     <MenuLateral empresa={empresa} papel={papel} atual={atual.id} permitido={permitido} ir={ir}
       alternarLoja={alternarLoja} abrirQr={() => { setMenu(false); setQr(true); }} sair={sair} />
   );
-  const largo = ["cardapio", "historico", "relatorios", "impressao"].includes(atual.id);
+  const largo = ["cardapio", "historico", "relatorios", "impressao", "whatsapp"].includes(atual.id);
   const props = { empresa, mudou: setEmpresa };
   const formas = empresa.formas_pagamento;
   const config = empresa.config_impressao;
@@ -146,6 +148,7 @@ export default function Painel() {
             {atual.id === "cardapio" && <EditorCardapio {...props} />}
             {atual.id === "mesas" && <Mesas empresaId={empresa.id} />}
             {atual.id === "entrega" && <Bairros empresaId={empresa.id} />}
+            {atual.id === "whatsapp" && <WhatsApp empresa={empresa} />}
             {atual.id === "gerais" && <Gerais {...props} />}
             {atual.id === "pagamentos" && <Pagamentos {...props} />}
             {atual.id === "info" && <InfoNegocio {...props} />}

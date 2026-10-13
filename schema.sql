@@ -8,7 +8,7 @@ create extension if not exists pgcrypto;
 -- ---------- ENUMS ----------
 create type papel_membro  as enum ('dono', 'garcom', 'caixa');
 create type tipo_pedido   as enum ('mesa', 'entrega', 'retirada');
-create type status_pedido as enum ('novo', 'preparo', 'pronto', 'entregue', 'cancelado');
+create type status_pedido as enum ('novo', 'preparo', 'pronto', 'saiu', 'entregue', 'cancelado');  -- saiu: só entrega
 create type status_comanda as enum ('aberta', 'fechada');
 create type forma_pagamento as enum ('dinheiro', 'pix', 'cartao_credito', 'cartao_debito');
 create type origem_pedido as enum ('web', 'garcom', 'balcao');
@@ -565,7 +565,7 @@ $$;
 grant execute on function public.cancelar_pedido(uuid) to authenticated;
 
 -- ---------- CAIXA, RELATÓRIO, LOJA, REORDENAR (007) ----------
--- Ao marcar pago, liga o pedido ao caixa aberto e grava pago_em com a hora do servidor.
+-- Ao marcar pago, exige caixa aberto, liga o pedido a ele e grava pago_em com a hora do servidor.
 -- Ao desmarcar, solta. Já pago: caixa_id/pago_em não mudam (nem por update direto do client).
 create or replace function public._pedido_caixa()
 returns trigger
@@ -579,6 +579,7 @@ begin
     else
       new.pago_em := now();
       select id into new.caixa_id from caixas where empresa_id = new.empresa_id and status = 'aberto';
+      if new.caixa_id is null then raise exception 'Nenhum caixa aberto: abra o caixa para receber'; end if;
     end if;
   else
     if tg_op = 'UPDATE' and old.pago and old.caixa_id is not null
@@ -841,6 +842,66 @@ begin
 end;
 $$;
 grant execute on function public.relatorio_vendas(uuid, timestamptz, timestamptz, text) to authenticated;
+
+-- ---------- WHATSAPP ----------
+-- Uma instância Evolution por empresa ("cardapio-{empresa_id}"). Escrita só pelo server (service role).
+create table whatsapp_conexoes (
+  empresa_id    uuid primary key references empresas(id) on delete cascade,
+  instancia     text not null unique,
+  status        text not null default 'desconectado'
+                check (status in ('desconectado', 'aguardando_qr', 'conectado')),
+  numero        text,
+  conectado_em  timestamptz
+);
+
+create table bot_mensagens (
+  empresa_id  uuid not null references empresas(id) on delete cascade,
+  tipo        text not null check (tipo in ('boas_vindas', 'fazer_pedido', 'ausencia', 'horarios', 'promocoes', 'informacoes',
+                                            'pedido_recebido', 'pedido_preparo', 'pedido_saiu', 'pedido_pronto_retirada',
+                                            'pedido_cancelado')),
+  texto       text not null,
+  ativo       boolean not null default true,
+  primary key (empresa_id, tipo)
+);
+
+create table bot_config (
+  empresa_id                uuid primary key references empresas(id) on delete cascade,
+  ia_ativa                  boolean not null default false,
+  pausa_humano_minutos      integer not null default 30 check (pausa_humano_minutos between 0 and 1440),
+  intervalo_saudacao_horas  integer not null default 12 check (intervalo_saudacao_horas between 0 and 720)
+);
+
+-- Estado por contato: saudação e pausa quando um atendente responde pelo celular.
+create table bot_conversas (
+  id               uuid primary key default gen_random_uuid(),
+  empresa_id       uuid not null references empresas(id) on delete cascade,
+  telefone         text not null,
+  ultimo_contato   timestamptz not null default now(),
+  ultima_saudacao  timestamptz,
+  pausado_ate      timestamptz,
+  unique (empresa_id, telefone)
+);
+
+-- Idempotência: ids de mensagens já tratadas/enviadas e avisos de pedido já mandados.
+-- shortcut: cresce sem limite; apagar linhas com mais de 7 dias (pg_cron) quando o volume pesar.
+create table whatsapp_eventos (
+  id          text primary key,
+  created_at  timestamptz not null default now()
+);
+
+alter table whatsapp_conexoes enable row level security;
+alter table bot_mensagens     enable row level security;
+alter table bot_config        enable row level security;
+alter table bot_conversas     enable row level security;   -- sem policy: só service role
+alter table whatsapp_eventos  enable row level security;   -- sem policy: só service role
+
+create policy "dono le conexao"      on whatsapp_conexoes for select using (e_membro(empresa_id, '{dono}'));
+create policy "dono le mensagens"    on bot_mensagens     for select using (e_membro(empresa_id, '{dono}'));
+create policy "dono edita mensagens" on bot_mensagens     for update using (e_membro(empresa_id, '{dono}'))
+  with check (e_membro(empresa_id, '{dono}'));
+create policy "dono le config bot"    on bot_config for select using (e_membro(empresa_id, '{dono}'));
+create policy "dono edita config bot" on bot_config for update using (e_membro(empresa_id, '{dono}'))
+  with check (e_membro(empresa_id, '{dono}'));
 
 -- ---------- REALTIME (painel do balcão) ----------
 alter publication supabase_realtime add table pedidos;

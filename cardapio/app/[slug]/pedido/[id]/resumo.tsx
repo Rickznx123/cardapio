@@ -13,6 +13,7 @@ const ETAPAS = [
   { s: "novo", Icone: Receipt },
   { s: "preparo", Icone: ChefHat },
   { s: "pronto", Icone: PackageCheck },
+  { s: "saiu", Icone: Bike },
   { s: "entregue", Icone: CircleCheck },
 ] as const;
 
@@ -77,7 +78,9 @@ export function Pedido() {
     );
   }
 
-  const etapa = ETAPAS.findIndex((e) => e.s === p.status);
+  // "Saiu para entrega" só existe na entrega.
+  const etapas = ETAPAS.filter((e) => e.s !== "saiu" || p.tipo === "entrega");
+  const etapa = etapas.findIndex((e) => e.s === p.status);
   const cancelado = p.status === "cancelado";
 
   return casca(
@@ -98,8 +101,8 @@ export function Pedido() {
         {cancelado ? (
           <p className="mt-4 rounded-xl bg-red-50 p-3 font-semibold text-red-700">Pedido cancelado. Fale com o estabelecimento.</p>
         ) : (
-          <ol className="mt-6 grid grid-cols-4 gap-1" aria-label="Andamento do pedido">
-            {ETAPAS.map(({ s, Icone }, n) => (
+          <ol className={`mt-6 grid gap-1 ${etapas.length === 5 ? "grid-cols-5" : "grid-cols-4"}`} aria-label="Andamento do pedido">
+            {etapas.map(({ s, Icone }, n) => (
               <li key={s} aria-current={n === etapa ? "step" : undefined} className="flex flex-col items-center gap-1">
                 <span className={`flex size-11 items-center justify-center rounded-full ${
                   n < etapa ? "bg-(--cor)/15 text-(--cor)" : n === etapa ? "bg-(--cor) text-(--cor-texto) ring-4 ring-(--cor)/20" : "bg-neutral-100 text-neutral-400"}`}>

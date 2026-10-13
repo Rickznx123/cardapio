@@ -39,9 +39,9 @@ export type ItemPublico = {
 export type BairroPublico = { id: string; nome: string; taxa: number; pedido_minimo: number };
 
 // Retorno da RPC ver_pedido_publico (sem telefone/endereço).
-export type StatusPedido = "novo" | "preparo" | "pronto" | "entregue" | "cancelado";
+export type StatusPedido = "novo" | "preparo" | "pronto" | "saiu" | "entregue" | "cancelado";
 export const STATUS: Record<StatusPedido, string> = {
-  novo: "Recebido", preparo: "Em preparo", pronto: "Pronto", entregue: "Entregue", cancelado: "Cancelado",
+  novo: "Recebido", preparo: "Em preparo", pronto: "Pronto", saiu: "Saiu para entrega", entregue: "Entregue", cancelado: "Cancelado",
 };
 export type PedidoPublico = {
   numero: number; tipo: "entrega" | "retirada"; status: StatusPedido; bairro_nome: string | null;

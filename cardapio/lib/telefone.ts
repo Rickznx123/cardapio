@@ -7,9 +7,14 @@ export function mascaraTelefone(v: string) {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 }
 
-// Link wa.me a partir do telefone digitado pelo cliente (acrescenta 55 se vier só DDD + número).
-export function linkWhatsApp(telefone: string | null) {
+// Número do WhatsApp a partir do telefone digitado pelo cliente (acrescenta 55 se vier só DDD + número).
+export function numeroWhats(telefone: string | null) {
   const d = (telefone ?? "").replace(/\D/g, "");
   if (d.length < 10) return null;
-  return `https://wa.me/${d.length <= 11 ? `55${d}` : d}`;
+  return d.length <= 11 ? `55${d}` : d;
+}
+
+export function linkWhatsApp(telefone: string | null) {
+  const n = numeroWhats(telefone);
+  return n && `https://wa.me/${n}`;
 }

@@ -27,14 +27,15 @@ type Filtro = "tudo" | "novo" | "preparo" | "pronto";
 
 const ABAS: [Aba, string][] = [["retirada", "Balcão"], ["entrega", "Delivery"], ["mesa", "Mesas"]];
 const FILTROS: [Filtro, string][] = [["tudo", "Tudo"], ["novo", "Novo"], ["preparo", "Em preparo"], ["pronto", "Pronto"]];
-const ATIVOS: StatusPedido[] = ["novo", "preparo", "pronto"];
+const ATIVOS: StatusPedido[] = ["novo", "preparo", "pronto", "saiu"];
 const ROTULO_STATUS: Record<StatusPedido, string> = {
-  novo: "Novo", preparo: "Em preparo", pronto: "Pronto", entregue: "Entregue", cancelado: "Cancelado",
+  novo: "Novo", preparo: "Em preparo", pronto: "Pronto", saiu: "Saiu p/ entrega", entregue: "Entregue", cancelado: "Cancelado",
 };
 const COR_STATUS: Record<StatusPedido, string> = {
   novo: "bg-rose-600 text-white",
   preparo: "bg-amber-400 text-black",
   pronto: "bg-emerald-600 text-white",
+  saiu: "bg-sky-600 text-white",
   entregue: "bg-neutral-200 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200",
   cancelado: "bg-neutral-200 text-neutral-500",
 };
@@ -118,7 +119,7 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
     const desde = inicioDoDia(Date.now()).toISOString();
     const { data, error } = await supabase.from("pedidos").select(SELECT_PEDIDO)
       .eq("empresa_id", equipe.empresa_id).neq("status", "cancelado")
-      .or(`status.in.(novo,preparo,pronto),created_at.gte.${desde}`)
+      .or(`status.in.(novo,preparo,pronto,saiu),created_at.gte.${desde}`)
       .order("created_at");
     if (error) return toast.erro(error.message);
     const lista = data as unknown as PedidoBalcao[];
@@ -215,7 +216,7 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
       if (ea !== eb) return ea - eb;
       return ea ? b.created_at.localeCompare(a.created_at) : a.created_at.localeCompare(b.created_at);
     });
-  const prontos = pedidos.filter((p) => p.tipo === aba && p.status === "pronto");
+  const prontos = pedidos.filter((p) => p.tipo === aba && (p.status === "pronto" || p.status === "saiu"));
 
   return (
     <section hidden={!visivel} className="flex min-h-full flex-col"
@@ -381,7 +382,7 @@ function LinhaPedido({ p, agora, mudarStatus, cancelar, detalhes, pagar, reimpri
         <button onClick={reimprimir} aria-label={`Imprimir pedido ${p.numero}`} className={acao}><Printer className="size-4" /></button>
         <select value={p.status} onChange={(e) => mudarStatus(p, e.target.value as StatusPedido)} aria-label="Status"
           className="h-9 rounded-lg border border-neutral-300 bg-transparent px-2 text-sm font-medium dark:border-neutral-700 dark:bg-neutral-900">
-          {(["novo", "preparo", "pronto", "entregue"] as const).map((s) => <option key={s} value={s}>{ROTULO_STATUS[s]}</option>)}
+          {(p.tipo === "entrega" ? ["novo", "preparo", "pronto", "saiu", "entregue"] as const : ["novo", "preparo", "pronto", "entregue"] as const).map((s) => <option key={s} value={s}>{ROTULO_STATUS[s]}</option>)}
         </select>
         {!p.pago && p.tipo !== "mesa" && (
           <button onClick={pagar} className={acao}><Wallet className="size-4" /> Pagar</button>
