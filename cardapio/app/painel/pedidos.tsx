@@ -10,6 +10,7 @@ import { EscolhaPagamento } from "@/components/pagamento";
 import { toast } from "@/components/toast";
 import { useArmazenado } from "@/lib/armazenado";
 import { type ConfigImpressao, cuponsPedido, ORIGEM, type PedidoBalcao, SELECT_PEDIDO } from "@/lib/cupom";
+import { diaOperacional, inicioDiaOperacional } from "@/lib/horarios";
 import { imprimir } from "@/lib/impressao";
 import { createClient } from "@/lib/supabase/client";
 import { linkWhatsApp } from "@/lib/telefone";
@@ -21,7 +22,7 @@ import { NovoPedido } from "./novo-pedido";
 
 const supabase = createClient();
 
-export type Equipe = { empresa_id: string; nome: string; formas: FormaPagamento[]; config: ConfigImpressao | null };
+export type Equipe = { empresa_id: string; nome: string; formas: FormaPagamento[]; config: ConfigImpressao | null; virada: string };
 type Aba = "retirada" | "entrega" | "mesa";
 type Filtro = "tudo" | "novo" | "preparo" | "pronto";
 
@@ -74,7 +75,8 @@ const useAgora = () => useSyncExternalStore(assinarRelogio, () => agoraAtual, ()
 const buscarPedido = async (id: string) =>
   (await supabase.from("pedidos").select(SELECT_PEDIDO).eq("id", id).maybeSingle()).data as PedidoBalcao | null;
 const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-const inicioDoDia = (agora: number) => { const d = new Date(agora); d.setHours(0, 0, 0, 0); return d; };
+// Início do dia de trabalho (vira às empresas.virada_dia): pedido de 01:00 de domingo conta no sábado.
+const inicioDoDia = (agora: number, virada: string) => inicioDiaOperacional(diaOperacional(new Date(agora), virada), virada);
 
 export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean }) {
   const [pedidos, setPedidos] = useState<PedidoBalcao[]>([]);
@@ -116,7 +118,7 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
 
   // Refaz o fetch completo (ao conectar e a cada reconexão) para não perder nada que chegou offline.
   const recarregar = useEffectEvent(async () => {
-    const desde = inicioDoDia(Date.now()).toISOString();
+    const desde = inicioDoDia(Date.now(), equipe.virada).toISOString();
     const { data, error } = await supabase.from("pedidos").select(SELECT_PEDIDO)
       .eq("empresa_id", equipe.empresa_id).neq("status", "cancelado")
       .or(`status.in.(novo,preparo,pronto,saiu),created_at.gte.${desde}`)
@@ -201,7 +203,7 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
     toast.ok(`${lista.length} pedido(s) finalizado(s)`);
   }
 
-  const hoje = inicioDoDia(agora).getTime();
+  const hoje = inicioDoDia(agora, equipe.virada).getTime();
   const totalDia = pedidos.filter((p) => Date.parse(p.created_at) >= hoje).reduce((s, p) => s + Number(p.total), 0);
   const ativosPor = (t: Aba) => pedidos.filter((p) => p.tipo === t && ATIVOS.includes(p.status)).length;
   const termo = normalizar(busca.trim().replace(/^#/, ""));

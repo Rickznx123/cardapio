@@ -5,6 +5,7 @@ import { Download } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "@/components/toast";
 import { ORIGEM } from "@/lib/cupom";
+import { diaOperacional, FUSO, inicioDiaOperacional, somaDias } from "@/lib/horarios";
 import { createClient } from "@/lib/supabase/client";
 import { brl, FORMAS, type FormaPagamento } from "@/lib/tipos";
 import { card } from "../ui";
@@ -34,9 +35,6 @@ const VARS =
   "[--serie:#2a78d6] [--c1:#2a78d6] [--c2:#eb6834] [--c3:#1baf7a] [--c4:#eda100] [--c-outro:#a3a29c] [--grade:#e7e5e4] [--eixo:#898781] [--sup:#ffffff] " +
   "dark:[--serie:#3987e5] dark:[--c1:#3987e5] dark:[--c2:#d95926] dark:[--c3:#199e70] dark:[--c4:#c98500] dark:[--c-outro:#6b6a65] dark:[--grade:#383835] dark:[--sup:#171717]";
 
-const iso = (d: Date) => d.toLocaleDateString("en-CA"); // AAAA-MM-DD local
-const somaDias = (s: string, n: number) => { const d = new Date(`${s}T00:00:00`); d.setDate(d.getDate() + n); return iso(d); };
-const instante = (s: string) => new Date(`${s}T00:00:00`).toISOString();
 const dataCurta = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 const reais = (n: number) => `R$ ${Math.round(n).toLocaleString("pt-BR")}`;
 
@@ -48,20 +46,21 @@ function intervalo(p: Periodo, de: string, ate: string, hoje: string): [string, 
   return [de, ate];
 }
 
-export function Relatorios({ empresaId }: { empresaId: string }) {
-  const [hoje] = useState(() => iso(new Date()));
+// Dias são dias de trabalho: começam às `virada` (ex.: 05:00) no fuso da loja.
+export function Relatorios({ empresaId, virada }: { empresaId: string; virada: string }) {
+  const [hoje] = useState(() => diaOperacional(new Date(), virada));
   const [periodo, setPeriodo] = useState<Periodo>("7");
-  const [custom, setCustom] = useState(() => ({ de: somaDias(iso(new Date()), -6), ate: iso(new Date()) }));
+  const [custom, setCustom] = useState(() => ({ de: somaDias(hoje, -6), ate: hoje }));
   const [rel, setRel] = useState<Relatorio | null>(null);
   const [de, ate] = intervalo(periodo, custom.de, custom.ate, hoje);
 
   useEffect(() => {
     if (!de || !ate || de > ate) return;
     supabase.rpc("relatorio_vendas", {
-      p_empresa_id: empresaId, p_inicio: instante(de), p_fim: instante(somaDias(ate, 1)),
-      p_tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      p_empresa_id: empresaId, p_inicio: inicioDiaOperacional(de, virada).toISOString(),
+      p_fim: inicioDiaOperacional(somaDias(ate, 1), virada).toISOString(), p_tz: FUSO, p_virada: virada,
     }).then(({ data, error }) => (error ? toast.erro(error.message) : setRel(data as Relatorio)));
-  }, [empresaId, de, ate]);
+  }, [empresaId, de, ate, virada]);
 
   // Preenche dias/horas sem venda com zero (só apresentação; a soma vem do banco).
   const dias: { dia: string; rotulo: string; valor: number; pedidos: number }[] = [];

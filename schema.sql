@@ -42,7 +42,8 @@ create table empresas (
   tempo_entrega_min integer check (tempo_entrega_min >= 0),   -- minutos
   tempo_entrega_max integer check (tempo_entrega_max >= 0),
   tempo_retirada    integer check (tempo_retirada >= 0),
-  horarios         jsonb,                           -- {"seg": {"aberto": true, "abre": "18:00", "fecha": "23:00"}, ...}
+  horarios         jsonb,                           -- {"sab": [{"abre": "18:30", "fecha": "02:00"}], ...} (fecha <= abre: dia seguinte; [] = fechado)
+  virada_dia       time not null default '05:00',      -- fim do dia de trabalho (pedido 01:00 conta no dia anterior)
   config_impressao jsonb not null
                    default '{"largura": 80, "vias": 1, "via_cozinha_sem_precos": false, "cabecalho": "", "rodape": ""}',
   ativo            boolean not null default true,   -- assinatura ativa
@@ -788,9 +789,10 @@ $$;
 grant execute on function public.reordenar(text, uuid[]) to authenticated;
 
 -- ---------- RELATÓRIO DE VENDAS (dono/caixa) ----------
--- Período [p_inicio, p_fim). Faturamento = pedidos não cancelados. Horas/dias no fuso informado.
+-- Período [p_inicio, p_fim) nos limites do dia de trabalho (empresas.virada_dia). Faturamento = pedidos não cancelados.
+-- Horas no fuso informado; por_dia agrupa por dia de trabalho (desloca pela virada).
 create or replace function public.relatorio_vendas(p_empresa_id uuid, p_inicio timestamptz, p_fim timestamptz,
-                                                   p_tz text default 'America/Sao_Paulo')
+                                                   p_tz text default 'America/Cuiaba', p_virada time default '00:00')
 returns json
 language plpgsql stable security definer set search_path = public
 as $$
@@ -835,13 +837,13 @@ begin
       ), '[]'::json),
       'por_dia', coalesce((
         select json_agg(json_build_object('dia', d, 'valor', v, 'pedidos', n) order by d)
-        from (select (created_at at time zone p_tz)::date d, sum(total) v, count(*) n from validos group by 1) x
+        from (select ((created_at at time zone p_tz) - p_virada::interval)::date d, sum(total) v, count(*) n from validos group by 1) x
       ), '[]'::json)
     )
   );
 end;
 $$;
-grant execute on function public.relatorio_vendas(uuid, timestamptz, timestamptz, text) to authenticated;
+grant execute on function public.relatorio_vendas(uuid, timestamptz, timestamptz, text, time) to authenticated;
 
 -- ---------- WHATSAPP ----------
 -- Uma instância Evolution por empresa ("cardapio-{empresa_id}"). Escrita só pelo server (service role).

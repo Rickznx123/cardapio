@@ -7,13 +7,9 @@ export const brl = (n: number) => Number(n).toLocaleString("pt-BR", { style: "cu
 
 export const TODAS_FORMAS = Object.keys(FORMAS) as FormaPagamento[];
 
-// Horários por dia da semana (empresas.horarios).
-export const DIAS = [
-  ["dom", "Domingo"], ["seg", "Segunda"], ["ter", "Terça"], ["qua", "Quarta"],
-  ["qui", "Quinta"], ["sex", "Sexta"], ["sab", "Sábado"],
-] as const;
-export type Dia = (typeof DIAS)[number][0];
-export type Horarios = Partial<Record<Dia, { aberto: boolean; abre: string; fecha: string }>>;
+// Horários por dia da semana (empresas.horarios): ver lib/horarios.ts.
+import type { Horarios } from "./horarios";
+export { DIAS, type Dia, type Horarios, type Turno } from "./horarios";
 
 // Tempo estimado em texto: "30–45 min", "~20 min" ou null.
 export function textoTempo(min: number | null, max?: number | null) {

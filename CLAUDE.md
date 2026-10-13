@@ -37,6 +37,10 @@ Interface 100% em português (pt-BR), valores em R$.
 - Formas aceitas: `empresas.formas_pagamento` (mín. 1). As RPCs de pedido recusam forma desligada.
 - Reordenar (drag-and-drop) só via RPC `reordenar(tabela, ids[])`, numa transação.
 - Cupom: `config_impressao` (largura 58/80, vias, via da cozinha sem preços, cabeçalho, rodapé) via `cuponsPedido`.
+- Horários (`empresas.horarios`): `{dia: [{abre, fecha}]}`, até 3 turnos, `fecha <= abre` = termina no dia seguinte; lista vazia = fechado.
+  Utilitários em `lib/horarios.ts` (fuso `America/Cuiaba`): `abertoAgora` (conta a madrugada do turno de ontem), dia operacional.
+  Informativo: não abre/fecha a loja; o bot do WhatsApp responde "ausência" fora do horário.
+- Dia operacional: termina às `empresas.virada_dia` (default 05:00). "Hoje" dos Pedidos e Relatórios (`p_virada`) usam isso.
 - Status `saiu` (saiu para entrega) só em pedidos de entrega, entre `pronto` e `entregue`.
 - Pagar sem caixa aberto é barrado no banco (trigger `pedidos_caixa`), inclusive via `fechar_comanda`.
 
@@ -103,3 +107,4 @@ O garçom escolhe o nome e digita o PIN; `/api/garcom/login` busca o e-mail com 
   `formas_pagamento`, tempos, `horarios`, `config_impressao`; forma aceita checada em `_criar_pedido_externo`
 - `008_whatsapp.sql`: status `saiu`; trigger `pedidos_caixa` exige caixa aberto; `whatsapp_conexoes`, `bot_mensagens`,
   `bot_config`, `bot_conversas`, `whatsapp_eventos` (RLS: dono lê/edita conexão, mensagens e config; resto só service role)
+- `009_horarios.sql`: converte `horarios` para lista de turnos por dia; `empresas.virada_dia`; `relatorio_vendas` ganha `p_virada`

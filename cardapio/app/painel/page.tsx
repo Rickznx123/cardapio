@@ -116,6 +116,7 @@ export default function Painel() {
   const props = { empresa, mudou: setEmpresa };
   const formas = empresa.formas_pagamento;
   const config = empresa.config_impressao;
+  const virada = empresa.virada_dia?.slice(0, 5) ?? "05:00";
 
   return (
     <div className="flex flex-1 bg-neutral-50 dark:bg-neutral-950">
@@ -136,7 +137,7 @@ export default function Painel() {
         </header>
 
         {/* Pedidos fica sempre montado: Realtime, alerta e impressão seguem rodando nas outras seções. */}
-        <Pedidos equipe={{ empresa_id: empresa.id, nome: empresa.nome, formas, config }} visivel={atual.id === "pedidos"} />
+        <Pedidos equipe={{ empresa_id: empresa.id, nome: empresa.nome, formas, config, virada }} visivel={atual.id === "pedidos"} />
 
         {atual.id !== "pedidos" && (
           <main className={`mx-auto w-full p-4 md:p-8 ${largo ? "max-w-5xl" : "max-w-3xl"}`}>
@@ -144,7 +145,7 @@ export default function Painel() {
             <h1 className={atual.id === "cardapio" ? "sr-only" : "mb-5 text-2xl font-bold"}>{atual.nome}</h1>
             {atual.id === "historico" && <Historico empresaId={empresa.id} empresaNome={empresa.nome} config={config} />}
             {atual.id === "caixas" && <Caixas empresaId={empresa.id} empresaNome={empresa.nome} formas={formas} config={config} />}
-            {atual.id === "relatorios" && <Relatorios empresaId={empresa.id} />}
+            {atual.id === "relatorios" && <Relatorios empresaId={empresa.id} virada={virada} />}
             {atual.id === "cardapio" && <EditorCardapio {...props} />}
             {atual.id === "mesas" && <Mesas empresaId={empresa.id} />}
             {atual.id === "entrega" && <Bairros empresaId={empresa.id} />}

@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { abertoAgora, temHorarios } from "@/lib/horarios";
 import { createAdminClient } from "@/lib/supabase/server";
 import { decidir } from "@/lib/whatsapp/decidir";
 import { baixarMidia, numeroConectado } from "@/lib/whatsapp/evolution";
@@ -93,7 +94,8 @@ async function mensagem(admin: SupabaseClient, conexao: Conexao, m: Msg, origem:
   const saudouEm = conversa?.ultima_saudacao ? Date.parse(conversa.ultima_saudacao) : 0;
   const situacao = {
     pausado: !!conversa?.pausado_ate && Date.parse(conversa.pausado_ate) > agora.getTime(),
-    aberto: empresa.aberto,
+    // Loja aberta no botão e, se houver horários cadastrados, dentro de um turno (inclui a madrugada de ontem).
+    aberto: empresa.aberto && (!temHorarios(empresa.horarios) || abertoAgora(empresa.horarios, agora)),
     saudouRecente: agora.getTime() - saudouEm < cfg.intervalo_saudacao_horas * 3_600_000,
     texto,
     iaAtiva: cfg.ia_ativa,

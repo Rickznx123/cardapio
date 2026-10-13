@@ -1,4 +1,5 @@
-import { brl, DIAS, type Horarios, textoTempo } from "@/lib/tipos";
+import { DIAS, type Horarios, temHorarios, textoDia } from "@/lib/horarios";
+import { brl, textoTempo } from "@/lib/tipos";
 
 // Textos do bot (bot_mensagens.tipo). Compartilhado entre painel e server: nada de segredo aqui.
 export const TIPOS = {
@@ -41,9 +42,8 @@ export const preencher = (texto: string, v: Variaveis) =>
   texto.replace(/\{(\w+)\}/g, (todo, k: string) => (VARIAVEIS.includes(k as never) ? v[k as keyof Variaveis] ?? "" : todo));
 
 export function textoHorarios(h: Horarios | null, livre: string | null) {
-  const definidos = h && DIAS.some(([d]) => h[d]);
-  if (!definidos) return livre || "Consulte no cardápio";
-  return DIAS.map(([d, nome]) => `${nome}: ${h[d]?.aberto ? `${h[d].abre} às ${h[d].fecha}` : "fechado"}`).join("\n");
+  if (!h || !temHorarios(h)) return livre || "Consulte no cardápio";
+  return DIAS.map(([d, nome]) => `${nome}: ${textoDia(h[d]).replace("Fechado", "fechado")}`).join("\n");
 }
 
 type EmpresaVars = {

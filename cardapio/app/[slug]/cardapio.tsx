@@ -7,6 +7,7 @@ import {
 import { Modal } from "@/components/modal";
 import { useArmazenado } from "@/lib/armazenado";
 import { varsCor } from "@/lib/cor";
+import { temHorarios, textoDia } from "@/lib/horarios";
 import { adicionarCom, type LinhaCarrinho } from "@/lib/linhas";
 import {
   type BairroPublico, brl, type CategoriaPublica, DIAS, type EmpresaPublica, FORMAS, type ItemPublico, textoTempo,
@@ -201,7 +202,7 @@ function InfoModal({ empresa, bairros, fechar }: { empresa: EmpresaPublica; bair
             <p className="text-neutral-700">{empresa.endereco}</p>
           </div>
         )}
-        {empresa.horarios && Object.keys(empresa.horarios).length > 0 ? (
+        {temHorarios(empresa.horarios) ? (
           <div className={bloco}>
             <h3 className="flex items-center gap-2 font-semibold"><Clock className="size-4" /> Horário</h3>
             <dl className="divide-y divide-neutral-100 text-sm">
@@ -210,7 +211,7 @@ function InfoModal({ empresa, bairros, fechar }: { empresa: EmpresaPublica; bair
                 return (
                   <div key={d} className="flex justify-between py-1.5">
                     <dt>{nome}</dt>
-                    <dd className={h?.aberto ? "tabular-nums" : "text-neutral-500"}>{h?.aberto ? `${h.abre} às ${h.fecha}` : "Fechado"}</dd>
+                    <dd className={h?.length ? "text-right tabular-nums" : "text-neutral-500"}>{textoDia(h)}</dd>
                   </div>
                 );
               })}
