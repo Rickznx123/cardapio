@@ -246,7 +246,15 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
       const { data, error } = await supabase.rpc("aceitar_pedido", { p_id: p.id });
       if (error) return toast.erro(error.message);
       if (!data) {
-        toast.ok(`O pedido #${p.numero} já foi processado em outro painel`);
+        const atualizado = await buscarPedido(p.id);
+        if (atualizado) {
+          guardar(atualizado);
+          if (atualizado.status === "cancelado" && atualizado.cancelamento_motivo) {
+            toast.erro(`Pedido #${p.numero} recusado: ${atualizado.cancelamento_motivo}`);
+          } else {
+            toast.ok(`O pedido #${p.numero} já foi processado em outro painel`);
+          }
+        }
         return;
       }
       const atualizado = await buscarPedido(p.id);

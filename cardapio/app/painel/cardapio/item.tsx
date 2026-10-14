@@ -183,6 +183,51 @@ export function DrawerItem({ item: i, categorias, ops, enviandoFoto, fechar }: {
           </label>
           <section className="space-y-3 rounded-xl bg-neutral-100 p-3 dark:bg-neutral-800">
             <label className="flex min-h-11 items-center justify-between gap-3">
+              <span className="text-sm font-medium">Controlar estoque</span>
+              <input type="checkbox" role="switch" checked={i.estoque_controlado}
+                onChange={(e) => ops.atualizarEstoqueItem(i.id, {
+                  estoque_controlado: e.target.checked,
+                  estoque_minimo: i.estoque_minimo,
+                  estoque_indisponivel_zerado: i.estoque_indisponivel_zerado,
+                })}
+                className="size-5 accent-rose-600" />
+            </label>
+            {i.estoque_controlado && (
+              <>
+                <p className="text-sm text-neutral-600 dark:text-neutral-300">
+                  Saldo atual: <b>{i.estoque_quantidade}</b>. Use a aba Estoque para registrar entradas, saídas e contagens.
+                </p>
+                <label className="block"><span className={rotulo}>Quantidade mínima para alerta</span>
+                  <input key={i.estoque_minimo} type="number" min="0" step="1" defaultValue={i.estoque_minimo}
+                    inputMode="numeric" onBlur={(e) => {
+                      const minimo = Number(e.currentTarget.value);
+                      if (!Number.isInteger(minimo) || minimo < 0) {
+                        e.currentTarget.value = String(i.estoque_minimo);
+                        return toast.erro("A quantidade mínima deve ser um inteiro igual ou maior que zero");
+                      }
+                      if (minimo !== i.estoque_minimo) ops.atualizarEstoqueItem(i.id, {
+                        estoque_controlado: i.estoque_controlado,
+                        estoque_minimo: minimo,
+                        estoque_indisponivel_zerado: i.estoque_indisponivel_zerado,
+                      });
+                    }}
+                    className={`${campo} h-11`} />
+                </label>
+                <label className="flex min-h-11 items-center justify-between gap-3">
+                  <span className="text-sm font-medium">Marcar como indisponível quando zerar</span>
+                  <input type="checkbox" role="switch" checked={i.estoque_indisponivel_zerado}
+                    onChange={(e) => ops.atualizarEstoqueItem(i.id, {
+                      estoque_controlado: i.estoque_controlado,
+                      estoque_minimo: i.estoque_minimo,
+                      estoque_indisponivel_zerado: e.target.checked,
+                    })}
+                    className="size-5 accent-rose-600" />
+                </label>
+              </>
+            )}
+          </section>
+          <section className="space-y-3 rounded-xl bg-neutral-100 p-3 dark:bg-neutral-800">
+            <label className="flex min-h-11 items-center justify-between gap-3">
               <span className="text-sm font-medium">Perguntar ponto da carne</span>
               <input type="checkbox" role="switch" checked={i.ponto_carne_ativo}
                 onChange={(e) => ops.atualizarItem(i.id, { ponto_carne_ativo: e.target.checked,

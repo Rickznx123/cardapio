@@ -6,6 +6,7 @@ export type PedidoBalcao = {
   cliente_nome: string | null; cliente_telefone: string | null; endereco: string | null; bairro_nome: string | null;
   taxa_entrega: number; subtotal: number; total: number; observacao: string | null;
   impresso_em: string | null; aceito_em: string | null; created_at: string; comanda_id: string | null;
+  cancelamento_motivo: string | null;
   forma_pagamento: FormaPagamento | null; troco_para: number | null; pago: boolean; pago_em: string | null;
   desconto: number; cupom_id: string | null; cupons: { codigo: string } | null;
   origem: "web" | "garcom" | "balcao";
@@ -16,7 +17,7 @@ export type PedidoBalcao = {
 
 export const SELECT_PEDIDO =
   "id, numero, tipo, status, aceite_pendente, cliente_nome, cliente_telefone, endereco, bairro_nome, taxa_entrega, subtotal, total, " +
-  "observacao, impresso_em, aceito_em, created_at, comanda_id, forma_pagamento, troco_para, pago, pago_em, origem, desconto, cupom_id, cupons(codigo), pedido_itens(nome, preco, quantidade, observacao, ponto_carne), " +
+  "observacao, impresso_em, aceito_em, created_at, comanda_id, cancelamento_motivo, forma_pagamento, troco_para, pago, pago_em, origem, desconto, cupom_id, cupons(codigo), pedido_itens(nome, preco, quantidade, observacao, ponto_carne), " +
   "comandas(mesas(numero)), membros(nome)";
 
 export const ORIGEM: Record<PedidoBalcao["origem"], string> = { web: "WEB", garcom: "GARÇOM", balcao: "BALCÃO" };

@@ -14,7 +14,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Empresa } from "../configuracoes";
 import { CategoriaCard } from "./categoria";
 import { DrawerItem } from "./item";
-import { acessibilidadeDnd, type Categoria, COLUNAS_ITEM, type ItemEd, MAX_DESTAQUES, type Ops } from "./tipos";
+import { acessibilidadeDnd, type Categoria, COLUNAS_ITEM, type ConfigEstoqueItem, type ItemEd, MAX_DESTAQUES, type Ops } from "./tipos";
 
 const supabase = createClient();
 const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -52,10 +52,21 @@ export function EditorCardapio({ empresa, mudou }: { empresa: Empresa; mudou: (e
     Promise.all([
       supabase.from("categorias").select("id, nome, ordem, ativo").eq("empresa_id", empresa.id).order("ordem"),
       supabase.from("itens").select(COLUNAS_ITEM).eq("empresa_id", empresa.id).order("ordem"),
-    ]).then(([c, i]) => {
-      if (c.error || i.error) return toast.erro((c.error ?? i.error)!.message);
+      supabase.from("estoque_itens").select("item_id, controlado, quantidade, minimo, indisponivel_zerado").eq("empresa_id", empresa.id),
+    ]).then(([c, i, e]) => {
+      if (c.error || i.error || e.error) return toast.erro((c.error ?? i.error ?? e.error)!.message);
       setCats(c.data);
-      setItens(i.data as ItemEd[]);
+      const estoquePorItem = new Map((e.data ?? []).map((estoque) => [estoque.item_id, estoque]));
+      setItens((i.data ?? []).map((item) => {
+        const estoque = estoquePorItem.get(item.id);
+        return {
+          ...(item as ItemEd),
+          estoque_controlado: estoque?.controlado ?? false,
+          estoque_quantidade: estoque?.quantidade ?? 0,
+          estoque_minimo: estoque?.minimo ?? 0,
+          estoque_indisponivel_zerado: estoque?.indisponivel_zerado ?? false,
+        };
+      }));
     });
   }, [empresa.id]);
 
@@ -83,7 +94,10 @@ export function EditorCardapio({ empresa, mudou }: { empresa: Empresa; mudou: (e
       .insert({ empresa_id: empresa.id, categoria_id: r.categoria_id, nome: r.nome.trim(), preco: r.preco, ordem })
       .select(COLUNAS_ITEM).single();
     if (error) return toast.erro(error.message);
-    setItens((l) => l.map((i) => (i.id === r.id ? { ...(data as ItemEd), k: r.id } : i)));
+    setItens((l) => l.map((i) => (i.id === r.id ? {
+      ...(data as ItemEd), k: r.id, estoque_controlado: false, estoque_quantidade: 0, estoque_minimo: 0,
+      estoque_indisponivel_zerado: false,
+    } : i)));
     toast.salvo("Produto criado");
   }
 
@@ -102,6 +116,19 @@ export function EditorCardapio({ empresa, mudou }: { empresa: Empresa; mudou: (e
       () => setItens((l) => l.map((i) => (i.id === id ? { ...i, ...antigos } : i))));
   }
 
+  function atualizarEstoqueItem(id: string, campos: ConfigEstoqueItem) {
+    const antes = itens.find((i) => i.id === id);
+    if (!antes) return;
+    const depois = { ...antes, ...campos };
+    setItens((l) => l.map((i) => (i.id === id ? depois : i)));
+    persistir(supabase.rpc("configurar_estoque_item", {
+      p_item_id: id,
+      p_controlado: depois.estoque_controlado,
+      p_minimo: depois.estoque_minimo,
+      p_indisponivel_zerado: depois.estoque_indisponivel_zerado,
+    }), () => setItens((l) => l.map((i) => (i.id === id ? antes : i))), "Configuração de estoque salva");
+  }
+
   function reordenarItens(categoriaId: string, idsEmOrdem: string[]) {
     const antes = itens;
     const novaOrdem = new Map(idsEmOrdem.map((id, n) => [id, n]));
@@ -117,7 +144,8 @@ export function EditorCardapio({ empresa, mudou }: { empresa: Empresa; mudou: (e
       id, k: id, categoria_id: categoriaId, nome: "", descricao: null, preco: 0, foto_url: null,
       disponivel: true, destaque: false, ordem: 9999, rascunho: true,
       ponto_carne_ativo: false, ponto_carne_opcoes: ["Mal passado", "Ao ponto", "Bem passado"],
-      ponto_carne_obrigatorio: false,
+      ponto_carne_obrigatorio: false, estoque_controlado: false, estoque_quantidade: 0, estoque_minimo: 0,
+      estoque_indisponivel_zerado: false,
     }]);
   }
 
@@ -130,7 +158,10 @@ export function EditorCardapio({ empresa, mudou }: { empresa: Empresa; mudou: (e
       ponto_carne_obrigatorio: item.ponto_carne_obrigatorio,
     }).select(COLUNAS_ITEM).single();
     if (error) return toast.erro(error.message);
-    setItens((l) => [...l, data as ItemEd]);
+    setItens((l) => [...l, {
+      ...(data as ItemEd), estoque_controlado: false, estoque_quantidade: 0, estoque_minimo: 0,
+      estoque_indisponivel_zerado: false,
+    }]);
     toast.salvo("Produto duplicado");
   }
 
@@ -199,7 +230,7 @@ export function EditorCardapio({ empresa, mudou }: { empresa: Empresa; mudou: (e
   }
 
   const ops: Ops = {
-    atualizarItem, atualizarCategoria, reordenarItens, novoProduto, duplicar, excluirItem, excluirCategoria,
+    atualizarItem, atualizarEstoqueItem, atualizarCategoria, reordenarItens, novoProduto, duplicar, excluirItem, excluirCategoria,
     trocarFoto, alternarDestaque, editar: setEditando, mover: setMovendo,
     descartarRascunho: (id) => setItens((l) => l.filter((i) => i.id !== id)),
   };

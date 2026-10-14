@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Armchair, BarChart3, Bike, ChevronDown, ClipboardList, CreditCard, ExternalLink, History, Info, LogOut, Menu, MessageCircle, Printer, QrCode,
+  Armchair, BarChart3, Bike, ChevronDown, ClipboardList, CreditCard, ExternalLink, History, Info, LogOut, Menu, MessageCircle, Package, Printer, QrCode,
   Settings, SlidersHorizontal, TicketPercent, TrendingUp, Users, UtensilsCrossed, Wallet,
 } from "lucide-react";
 import { Modal } from "@/components/modal";
@@ -19,6 +19,7 @@ import { Pagamentos } from "./config/pagamentos";
 import { type Empresa, InfoNegocio } from "./configuracoes";
 import { Cupons } from "./cupons";
 import { Equipe } from "./equipe";
+import { Estoque } from "./estoque";
 import { Mesas } from "./mesas";
 import { Pedidos } from "./pedidos";
 import { Assinar, Checklist, FaixaTrial, TesteEncerrado } from "./plano";
@@ -43,6 +44,7 @@ const MENU: (Item | Grupo)[] = [
     { id: "relatorios", nome: "Relatórios", Icone: BarChart3, papeis: TODOS },
   ] },
   { id: "cardapio", nome: "Cardápio", Icone: UtensilsCrossed, papeis: DONO },
+  { id: "estoque", nome: "Estoque", Icone: Package, papeis: TODOS },
   { id: "mesas", nome: "Mesas", Icone: Armchair, papeis: DONO },
   { id: "entrega", nome: "Entrega", Icone: Bike, papeis: DONO },
   { id: "clientes", nome: "Clientes", Icone: Users, papeis: DONO },
@@ -123,7 +125,7 @@ export default function Painel() {
     <MenuLateral empresa={empresa} papel={papel} atual={atual.id} permitido={permitido} ir={ir}
       alternarLoja={alternarLoja} abrirQr={() => { setMenu(false); setQr(true); }} sair={sair} />
   );
-  const largo = ["cardapio", "historico", "relatorios", "impressao", "whatsapp", "clientes", "cupons"].includes(atual.id);
+  const largo = ["cardapio", "estoque", "historico", "relatorios", "impressao", "whatsapp", "clientes", "cupons"].includes(atual.id);
   const props = { empresa, mudou: setEmpresa };
   const formas = empresa.formas_pagamento;
   const config = empresa.config_impressao;
@@ -161,6 +163,7 @@ export default function Painel() {
             {atual.id === "caixas" && <Caixas empresaId={empresa.id} empresaNome={empresa.nome} formas={formas} config={config} />}
             {atual.id === "relatorios" && <Relatorios empresaId={empresa.id} virada={virada} />}
             {atual.id === "cardapio" && <EditorCardapio {...props} />}
+            {atual.id === "estoque" && <Estoque empresaId={empresa.id} podeAlterar={papel === "dono"} />}
             {atual.id === "mesas" && <Mesas empresaId={empresa.id} />}
             {atual.id === "entrega" && <Bairros empresaId={empresa.id} />}
             {atual.id === "clientes" && <Clientes empresaId={empresa.id} empresaNome={empresa.nome} />}

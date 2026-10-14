@@ -20,6 +20,7 @@ const pedido: PedidoBalcao = {
   aceito_em: "2026-10-13T12:00:00.000Z",
   created_at: "2026-10-13T12:00:00.000Z",
   comanda_id: null,
+  cancelamento_motivo: null,
   forma_pagamento: "dinheiro",
   troco_para: 50,
   pago: false,
