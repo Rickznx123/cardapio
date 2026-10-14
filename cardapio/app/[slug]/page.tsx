@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { createAdminClient, createPublicClient } from "@/lib/supabase/server";
+import { lerStatusLoja } from "@/lib/status-loja";
 import type { BairroPublico, CategoriaPublica, EmpresaPublica, ItemPublico } from "@/lib/tipos";
 import { Cardapio, type CupomCardapio } from "./cardapio";
 
@@ -18,7 +19,7 @@ async function Conteudo({ params }: { params: Promise<{ slug: string }> }) {
 
   const { data: empresa } = await supabase
     .from("empresas")
-    .select("id, nome, slug, logo_url, cor_primaria, whatsapp, endereco, capa_url, descricao, horario_texto, aceita_entrega, aceita_retirada, aberto, formas_pagamento, tempo_entrega_min, tempo_entrega_max, tempo_retirada, horarios")
+    .select("id, nome, slug, logo_url, cor_primaria, whatsapp, endereco, capa_url, descricao, horario_texto, aceita_entrega, aceita_retirada, formas_pagamento, tempo_entrega_min, tempo_entrega_max, tempo_retirada, horarios")
     .eq("slug", slug)
     .eq("ativo", true)
     .maybeSingle<EmpresaPublica>();
@@ -29,8 +30,9 @@ async function Conteudo({ params }: { params: Promise<{ slug: string }> }) {
     return <Indisponivel nome={inativa.nome} />;
   }
 
-  const [{ data: liberada }, categorias, itens, bairros, cupons] = await Promise.all([
+  const [{ data: liberada }, statusResposta, categorias, itens, bairros, cupons] = await Promise.all([
     supabase.rpc("empresa_liberada", { p_empresa: empresa.id }),
+    supabase.rpc("status_loja", { p_empresa_id: empresa.id }),
     supabase.from("categorias").select("id, nome").eq("empresa_id", empresa.id).eq("ativo", true).order("ordem"),
     supabase.from("itens").select("id, categoria_id, nome, descricao, preco, foto_url, disponivel, destaque, ponto_carne_ativo, ponto_carne_opcoes, ponto_carne_obrigatorio")
       .eq("empresa_id", empresa.id).order("ordem"),
@@ -38,11 +40,14 @@ async function Conteudo({ params }: { params: Promise<{ slug: string }> }) {
     supabase.rpc("cupons_publicos_cardapio", { p_slug: slug }),
   ]);
   if (!liberada) return <Indisponivel nome={empresa.nome} />; // teste grátis vencido / plano encerrado
+  if (statusResposta.error) throw new Error("Não foi possível consultar o horário de funcionamento.", { cause: statusResposta.error });
+  const statusLoja = lerStatusLoja(statusResposta.data);
   if (cupons.error) throw new Error("Não foi possível carregar as ofertas do cardápio.", { cause: cupons.error });
 
   return (
     <Cardapio
       empresa={empresa}
+      statusInicial={statusLoja}
       categorias={(categorias.data ?? []) as CategoriaPublica[]}
       itens={(itens.data ?? []) as ItemPublico[]}
       bairros={(bairros.data ?? []) as BairroPublico[]}

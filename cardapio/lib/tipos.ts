@@ -22,7 +22,7 @@ export type EmpresaPublica = {
   id: string; nome: string; slug: string; logo_url: string | null; cor_primaria: string | null;
   whatsapp: string | null; endereco: string | null;
   capa_url: string | null; descricao: string | null; horario_texto: string | null;
-  aceita_entrega: boolean; aceita_retirada: boolean; aberto: boolean;
+  aceita_entrega: boolean; aceita_retirada: boolean;
   formas_pagamento: FormaPagamento[];
   tempo_entrega_min: number | null; tempo_entrega_max: number | null; tempo_retirada: number | null;
   horarios: Horarios | null;

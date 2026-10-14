@@ -78,7 +78,7 @@ export function Gerais({ empresa, mudou }: { empresa: Empresa; mudou: (e: Empres
       <section className={`${card} space-y-2`}>
         <h2 className="text-lg font-semibold">Horário de funcionamento</h2>
         <p className="text-sm text-neutral-500">
-          Informativo: aparece em &quot;Informações&quot; no cardápio. Abrir e fechar a loja para pedidos continua no botão da barra lateral.
+          Define automaticamente quando o cardápio aceita pedidos de delivery e retirada. Sem horários configurados, a loja permanece aberta até você cadastrar a agenda.
         </p>
         <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
           {DIAS.map(([d, nome]) => {

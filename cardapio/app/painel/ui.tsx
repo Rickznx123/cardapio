@@ -107,7 +107,11 @@ export async function carregarSessao(): Promise<{ papel: Papel; empresa: Empresa
   // shortcut: membro de várias empresas vê só a primeira; adicionar seletor quando houver esse caso.
   const { data } = await supabase
     .from("membros")
-    .select("papel, empresas(*)")
+    .select(`papel, empresas(
+      id, nome, slug, logo_url, cor_primaria, whatsapp, endereco, capa_url, descricao, horario_texto,
+      aceita_entrega, aceita_retirada, ativo, formas_pagamento, tempo_entrega_min, tempo_entrega_max,
+      tempo_retirada, horarios, config_impressao, virada_dia, plano_status, trial_ate, origem_cadastro
+    )`)
     .eq("user_id", user.id)
     .in("papel", ["dono", "caixa"])
     .eq("ativo", true)

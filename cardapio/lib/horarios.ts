@@ -51,16 +51,6 @@ function parede(data: Date) {
   };
 }
 
-// Aberto pelo horário? Conta a madrugada do turno de ontem (domingo 01:00 cabe em sábado 18:30–02:00).
-export function abertoAgora(h: Horarios | null | undefined, data: Date) {
-  if (!h) return false;
-  const { dia, min } = parede(data);
-  const hoje = h[DIAS[dia][0]] ?? [];
-  const ontem = h[DIAS[(dia + 6) % 7][0]] ?? [];
-  return hoje.some((t) => min >= minutos(t.abre) && (viraDia(t) || min < minutos(t.fecha)))
-    || ontem.some((t) => viraDia(t) && min < minutos(t.fecha));
-}
-
 // ---------- Dia operacional: o dia de trabalho termina às `virada` (ex.: 05:00) do dia seguinte ----------
 export const somaDias = (dia: string, n: number) => new Date(Date.parse(`${dia}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
