@@ -8,8 +8,8 @@ import {
   Settings, SlidersHorizontal, TicketPercent, TrendingUp, Users, UtensilsCrossed, Wallet,
 } from "lucide-react";
 import { Modal } from "@/components/modal";
-import { toast } from "@/components/toast";
 import { situacaoPlano } from "@/lib/planos";
+import { lerStatusLoja, textoProximaMudanca, type StatusLoja } from "@/lib/status-loja";
 import { Bairros } from "./bairros";
 import { EditorCardapio } from "./cardapio/editor";
 import { Clientes } from "./clientes";
@@ -73,6 +73,10 @@ export default function Painel() {
   const [qr, setQr] = useState(false);
   const [plano, setPlano] = useState<ReturnType<typeof situacaoPlano> | null>(null);
   const [assinar, setAssinar] = useState(false);
+  const [statusLoja, setStatusLoja] = useState<StatusLoja | null>(null);
+  const [erroStatusLoja, setErroStatusLoja] = useState("");
+  const empresaId = empresa?.id;
+  const horariosEmpresa = JSON.stringify(empresa?.horarios ?? null);
 
   useEffect(() => {
     carregarSessao().then((s) => {
@@ -83,6 +87,38 @@ export default function Painel() {
     });
   }, [router]);
 
+  useEffect(() => {
+    if (!empresaId) return;
+    let ativo = true;
+    let erroNotificado = false;
+    async function atualizarStatus() {
+      const { data, error } = await supabase.rpc("status_loja", { p_empresa_id: empresaId });
+      if (!ativo) return;
+      if (error) {
+        if (!erroNotificado) {
+          erroNotificado = true;
+          console.error("Falha ao consultar status da loja:", error);
+        }
+        setErroStatusLoja("Não foi possível atualizar o status de funcionamento da loja.");
+        return;
+      }
+      try {
+        setStatusLoja(lerStatusLoja(data));
+        setErroStatusLoja("");
+        erroNotificado = false;
+      } catch (erro) {
+        if (!erroNotificado) {
+          erroNotificado = true;
+          console.error("Falha ao interpretar status da loja:", erro);
+        }
+        setErroStatusLoja("O status de funcionamento recebido é inválido.");
+      }
+    }
+    void atualizarStatus();
+    const timer = window.setInterval(() => void atualizarStatus(), 60_000);
+    return () => { ativo = false; window.clearInterval(timer); };
+  }, [empresaId, horariosEmpresa]);
+
   function ir(id: string) {
     setSecao(id);
     setMenu(false);
@@ -92,15 +128,6 @@ export default function Painel() {
   async function sair() {
     await supabase.auth.signOut();
     router.replace("/login");
-  }
-
-  async function alternarLoja() {
-    if (!empresa) return;
-    const aberto = !empresa.aberto;
-    const { error } = await supabase.rpc("alternar_loja", { p_empresa_id: empresa.id, p_aberto: aberto });
-    if (error) return toast.erro(error.message);
-    setEmpresa({ ...empresa, aberto });
-    toast.ok(aberto ? "Loja aberta para pedidos" : "Loja fechada para pedidos");
   }
 
   if (empresa === undefined) return <p className="p-6">Carregando…</p>;
@@ -123,7 +150,8 @@ export default function Painel() {
   const atual = ITENS.find((i) => i.id === secao && permitido(i)) ?? ITENS[0];
   const menuLateral = (
     <MenuLateral empresa={empresa} papel={papel} atual={atual.id} permitido={permitido} ir={ir}
-      alternarLoja={alternarLoja} abrirQr={() => { setMenu(false); setQr(true); }} sair={sair} />
+      statusLoja={statusLoja} erroStatusLoja={erroStatusLoja}
+      abrirQr={() => { setMenu(false); setQr(true); }} sair={sair} />
   );
   const largo = ["cardapio", "estoque", "historico", "relatorios", "impressao", "whatsapp", "clientes", "cupons"].includes(atual.id);
   const props = { empresa, mudou: setEmpresa };
@@ -143,13 +171,24 @@ export default function Painel() {
             <Menu className="size-6" />
           </button>
           <span className="min-w-0 flex-1 truncate font-bold">{atual.nome}</span>
-          <span className={`mr-2 flex items-center gap-1.5 text-xs font-semibold ${empresa.aberto ? "text-emerald-700 dark:text-emerald-400" : "text-red-600"}`}>
-            <span className={`size-2.5 rounded-full ${empresa.aberto ? "bg-emerald-500" : "bg-red-500"}`} />
-            {empresa.aberto ? "Aberta" : "Fechada"}
+          <span role="status" className={`mr-2 flex items-center gap-1.5 text-xs font-semibold ${
+            statusLoja?.aberto ? "text-emerald-700 dark:text-emerald-400" : "text-neutral-600 dark:text-neutral-400"}`}>
+            <span className={`size-2.5 rounded-full ${statusLoja?.aberto ? "bg-emerald-500" : "bg-neutral-400"}`} />
+            {erroStatusLoja ? "Status indisponível" : statusLoja ? `Loja ${statusLoja.aberto ? "aberta" : "fechada"}` : "Consultando loja…"}
           </span>
         </header>
 
         {plano?.trial && <FaixaTrial dias={plano.diasRestantes ?? 0} assinar={() => setAssinar(true)} />}
+        {erroStatusLoja && (
+          <p role="alert" className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+            {erroStatusLoja} A criação de pedidos pelo cardápio depende da confirmação do horário no servidor.
+          </p>
+        )}
+        {statusLoja && !statusLoja.horarios_configurados && (
+          <p role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            Configure os horários em <strong>Configurações → Gerais</strong> para calcular automaticamente quando a loja fecha. Até lá, consideramos a loja aberta para não bloquear pedidos.
+          </p>
+        )}
         {papel === "dono" && <Checklist empresa={empresa} />}
 
         {/* Pedidos fica sempre montado: Realtime, alerta e impressão seguem rodando nas outras seções. */}
@@ -185,9 +224,9 @@ export default function Painel() {
   );
 }
 
-function MenuLateral({ empresa, papel, atual, permitido, ir, alternarLoja, abrirQr, sair }: {
+function MenuLateral({ empresa, papel, atual, permitido, ir, statusLoja, erroStatusLoja, abrirQr, sair }: {
   empresa: Empresa; papel: Papel; atual: string; permitido: (i: Item) => boolean; ir: (id: string) => void;
-  alternarLoja: () => void; abrirQr: () => void; sair: () => void;
+  statusLoja: StatusLoja | null; erroStatusLoja: string; abrirQr: () => void; sair: () => void;
 }) {
   // Grupos abertos: o da seção atual começa aberto.
   const [abertos, setAbertos] = useState<Set<string>>(
@@ -236,13 +275,22 @@ function MenuLateral({ empresa, papel, atual, permitido, ir, alternarLoja, abrir
       </nav>
 
       <div className="space-y-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
-        <button onClick={alternarLoja} role="switch" aria-checked={empresa.aberto}
-          className={`flex h-14 w-full items-center justify-between rounded-xl px-4 font-bold text-white ${empresa.aberto ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"}`}>
-          <span>{empresa.aberto ? "Loja aberta" : "Loja fechada"}</span>
-          <span className={`flex h-7 w-12 items-center rounded-full bg-white/30 p-1 ${empresa.aberto ? "justify-end" : "justify-start"}`}>
-            <span className="size-5 rounded-full bg-white shadow" />
-          </span>
-        </button>
+        <div role="status" className={`rounded-xl px-4 py-3 ${
+          statusLoja?.aberto && !erroStatusLoja ? "bg-emerald-50 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200"
+            : "bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"}`}>
+          <div className="flex items-center gap-2 font-bold">
+            <span className={`size-2.5 shrink-0 rounded-full ${statusLoja?.aberto && !erroStatusLoja ? "bg-emerald-500" : "bg-neutral-400"}`} />
+            {erroStatusLoja ? "Status da loja indisponível" : statusLoja ? `Loja ${statusLoja.aberto ? "aberta" : "fechada"}` : "Consultando status da loja…"}
+          </div>
+          {statusLoja && !erroStatusLoja && (
+            <p className="mt-1 pl-[18px] text-xs">
+              {textoProximaMudanca(statusLoja) || (statusLoja.horarios_configurados
+                ? "Sem horário de fechamento definido"
+                : "Configure os horários para calcular o status")}
+            </p>
+          )}
+          {erroStatusLoja && <p className="mt-1 pl-[18px] text-xs">{erroStatusLoja}</p>}
+        </div>
         <Link href={`/${empresa.slug}`} target="_blank" className={`${item} ${neutro}`}>
           <ExternalLink className="size-[18px]" /> Ver cardápio
         </Link>

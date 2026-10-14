@@ -1,7 +1,7 @@
 import { after, NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { abertoAgora, temHorarios } from "@/lib/horarios";
+import { lerStatusLoja } from "@/lib/status-loja";
 import { createAdminClient } from "@/lib/supabase/server";
 import { numeroWhats } from "@/lib/telefone";
 import { decidir } from "@/lib/whatsapp/decidir";
@@ -103,6 +103,9 @@ async function mensagem(admin: SupabaseClient, conexao: Conexao, m: Msg, origem:
   const { data: empresa } = await admin.from("empresas").select(CAMPOS_EMPRESA).eq("id", empresaId).single();
   // Empresa desativada ou teste vencido: bot fica quieto.
   if (!empresa || !(await admin.rpc("empresa_liberada", { p_empresa: empresaId })).data) return;
+  const { data: statusDados, error: erroStatus } = await admin.rpc("status_loja", { p_empresa_id: empresaId });
+  if (erroStatus) throw new Error("Não foi possível consultar o horário da loja para o WhatsApp.", { cause: erroStatus });
+  const statusLoja = lerStatusLoja(statusDados);
 
   const iaAtiva = cfg.ia_ativa && iaDisponivel(); // toggle ligado e chave configurada
   const audio = !!m.message?.audioMessage;
@@ -115,8 +118,7 @@ async function mensagem(admin: SupabaseClient, conexao: Conexao, m: Msg, origem:
   const saudouEm = conversa?.ultima_saudacao ? Date.parse(conversa.ultima_saudacao) : 0;
   const situacao = {
     pausado: !!conversa?.pausado_ate && Date.parse(conversa.pausado_ate) > agora.getTime(),
-    // Loja aberta no botão e, se houver horários cadastrados, dentro de um turno (inclui a madrugada de ontem).
-    aberto: empresa.aberto && (!temHorarios(empresa.horarios) || abertoAgora(empresa.horarios, agora)),
+    aberto: statusLoja.aberto,
     saudouRecente: agora.getTime() - saudouEm < cfg.intervalo_saudacao_horas * 3_600_000,
     texto,
     iaAtiva,

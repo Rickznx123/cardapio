@@ -9,6 +9,7 @@ import { CampoTroco, EscolhaPagamento, trocoInvalido, trocoNumero } from "@/comp
 import { gravar } from "@/lib/armazenado";
 import { mascaraTelefone } from "@/lib/telefone";
 import { type LinhaCarrinho, paraRpc } from "@/lib/linhas";
+import { lerStatusLoja, type StatusLoja } from "@/lib/status-loja";
 import { createClient } from "@/lib/supabase/client";
 import { type BairroPublico, brl, type EmpresaPublica, type FormaPagamento, type ItemPublico } from "@/lib/tipos";
 import type { UltimoPedido } from "./cardapio";
@@ -18,11 +19,12 @@ const input =
 const ETAPAS = ["Sacola", "Entrega", "Revisar"] as const;
 
 type Props = {
-  empresa: EmpresaPublica; bairros: BairroPublico[]; linhas: LinhaCarrinho[]; porId: Map<string, ItemPublico>;
+  empresa: EmpresaPublica; statusLoja: StatusLoja; statusErro: string;
+  bairros: BairroPublico[]; linhas: LinhaCarrinho[]; porId: Map<string, ItemPublico>;
   subtotal: number; cupomInicial?: string | null; setLinhas: (l: LinhaCarrinho[]) => void; fechar: () => void;
 };
 
-export function Checkout({ empresa, bairros, linhas, porId, subtotal, cupomInicial, setLinhas, fechar }: Props) {
+export function Checkout({ empresa, statusLoja, statusErro, bairros, linhas, porId, subtotal, cupomInicial, setLinhas, fechar }: Props) {
   const router = useRouter();
   const [etapa, setEtapa] = useState(0);
   const [tipo, setTipo] = useState<"entrega" | "retirada">(empresa.aceita_entrega ? "entrega" : "retirada");
@@ -123,7 +125,24 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, cupomInici
   async function enviar() {
     setErro("");
     setEnviando(true);
-    const { data, error } = await createClient().rpc("criar_pedido_publico", {
+    const supabase = createClient();
+    const statusResposta = await supabase.rpc("status_loja", { p_empresa_id: empresa.id });
+    if (statusResposta.error) {
+      setEnviando(false);
+      return setErro("Não foi possível confirmar o horário da loja. Tente novamente.");
+    }
+    let atual: StatusLoja;
+    try {
+      atual = lerStatusLoja(statusResposta.data);
+    } catch {
+      setEnviando(false);
+      return setErro("Não foi possível confirmar o horário da loja. Tente novamente.");
+    }
+    if (!atual.aberto) {
+      setEnviando(false);
+      return setErro("A loja está fechada no momento. Confira os horários de funcionamento e tente novamente.");
+    }
+    const { data, error } = await supabase.rpc("criar_pedido_publico", {
       p_slug: empresa.slug,
       p_tipo: tipo,
       p_itens: paraRpc(linhas),
@@ -293,8 +312,15 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, cupomInici
             </p>
           )}
           {erro && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{erro}</p>}
+          {etapa === 2 && statusErro && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{statusErro}</p>}
+          {etapa === 2 && !statusLoja.aberto && (
+            <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+              A loja está fechada no momento. Confira os horários de funcionamento e volte durante o atendimento.
+            </p>
+          )}
           {etapa === 2 && <AceiteLegal />}
-          <button disabled={enviando || (etapa > 0 && faltaMinimo > 0) || pagamentoPendente}
+          <button disabled={enviando || (etapa > 0 && faltaMinimo > 0) || pagamentoPendente
+            || (etapa === 2 && (!statusLoja.aberto || !!statusErro))}
             className="flex h-14 w-full items-center justify-between rounded-2xl bg-(--cor) px-5 text-lg font-semibold text-(--cor-texto) disabled:opacity-50">
             <span>{etapa === 0 ? "Continuar" : etapa === 1 ? "Revisar pedido" : enviando ? "Enviando…" : "Confirmar pedido"}</span>
             <span>{brl(etapa > 0 ? total : subtotal)}</span>

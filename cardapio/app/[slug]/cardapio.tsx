@@ -10,6 +10,8 @@ import { useArmazenado } from "@/lib/armazenado";
 import { varsCor } from "@/lib/cor";
 import { temHorarios, textoDia } from "@/lib/horarios";
 import { adicionarCom, type LinhaCarrinho } from "@/lib/linhas";
+import { lerStatusLoja, type StatusLoja } from "@/lib/status-loja";
+import { createClient } from "@/lib/supabase/client";
 import {
   type BairroPublico, brl, type CategoriaPublica, DIAS, type EmpresaPublica, FORMAS, type ItemPublico, textoTempo,
 } from "@/lib/tipos";
@@ -19,7 +21,7 @@ import { ItemSheet } from "./item-sheet";
 export type CupomCardapio = { codigo: string; tipo: "percentual" | "valor" | "frete_gratis"; valor: number | string; pedido_minimo: number | string };
 type Props = {
   empresa: EmpresaPublica; categorias: CategoriaPublica[]; itens: ItemPublico[]; bairros: BairroPublico[];
-  cupons: CupomCardapio[];
+  cupons: CupomCardapio[]; statusInicial: StatusLoja;
 };
 export type UltimoPedido = { em: string; linhas: LinhaCarrinho[] };
 
@@ -36,21 +38,43 @@ function snapshotAviso(key: string) {
   catch { return false; }
 }
 
-export function Cardapio({ empresa, categorias, itens, bairros, cupons }: Props) {
+export function Cardapio({ empresa, categorias, itens, bairros, cupons, statusInicial }: Props) {
   const [salvo, setLinhas] = useArmazenado<LinhaCarrinho[]>(`carrinho:${empresa.slug}`, []);
   const [ultimo] = useArmazenado<UltimoPedido | null>(`ultimo:${empresa.slug}`, null);
   const [cupomInicial, setCupomInicial] = useState<string | null>(null);
   const [indiceCupom, setIndiceCupom] = useState(0);
   const [retornoCopia, setRetornoCopia] = useState("");
   const [codigoCopiado, setCodigoCopiado] = useState("");
+  const [statusLoja, setStatusLoja] = useState(statusInicial);
+  const [erroStatus, setErroStatus] = useState("");
   const [aberto, setAberto] = useState(false);
   const [itemAberto, setItemAberto] = useState<ItemPublico | null>(null);
   const [info, setInfo] = useState(false);
   const [busca, setBusca] = useState<string | null>(null);
-  const podePedir = empresa.aberto && (empresa.aceita_entrega || empresa.aceita_retirada);
+  const podePedir = !erroStatus && statusLoja.aberto && (empresa.aceita_entrega || empresa.aceita_retirada);
   const chaveAviso = `cupom-banner:${empresa.slug}`;
   const lerAvisoFechado = useCallback(() => snapshotAviso(chaveAviso), [chaveAviso]);
   const avisoFechadoSessao = useSyncExternalStore(assinarAvisos, lerAvisoFechado, snapshotAvisoServidor);
+
+  useEffect(() => {
+    let ativo = true;
+    async function atualizarStatus() {
+      const { data, error } = await createClient().rpc("status_loja", { p_empresa_id: empresa.id });
+      if (!ativo) return;
+      if (error) {
+        setErroStatus("Não foi possível atualizar o horário da loja. Tente recarregar o cardápio.");
+        return;
+      }
+      try {
+        setStatusLoja(lerStatusLoja(data));
+        setErroStatus("");
+      } catch {
+        setErroStatus("O status de funcionamento recebido é inválido. Tente recarregar o cardápio.");
+      }
+    }
+    const timer = window.setInterval(() => void atualizarStatus(), 60_000);
+    return () => { ativo = false; window.clearInterval(timer); };
+  }, [empresa.id]);
 
   useEffect(() => {
     if (avisoFechadoSessao || cupons.length < 2) return;
@@ -88,7 +112,8 @@ export function Cardapio({ empresa, categorias, itens, bairros, cupons }: Props)
   return (
     <div style={varsCor(empresa.cor_primaria)} className="min-h-dvh flex-1 bg-neutral-50 text-neutral-900">
       {aberto && qtd > 0 ? (
-        <Checkout empresa={empresa} bairros={bairros} linhas={linhas} porId={porId} subtotal={subtotal} cupomInicial={cupomInicial}
+        <Checkout empresa={empresa} statusLoja={statusLoja} statusErro={erroStatus} bairros={bairros} linhas={linhas}
+          porId={porId} subtotal={subtotal} cupomInicial={cupomInicial}
           setLinhas={setLinhas} fechar={() => setAberto(false)} />
       ) : (
         <main className="mx-auto w-full max-w-5xl bg-white pb-28 sm:my-4 sm:rounded-3xl sm:shadow-sm">
@@ -122,7 +147,8 @@ export function Cardapio({ empresa, categorias, itens, bairros, cupons }: Props)
             </div>
           )}
           {retornoCopia && <p role="status" className="sr-only">{retornoCopia}</p>}
-          <Cabecalho empresa={empresa} abrirInfo={() => setInfo(true)} />
+          {erroStatus && <p role="alert" className="m-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{erroStatus}</p>}
+          <Cabecalho empresa={empresa} statusLoja={statusLoja} abrirInfo={() => setInfo(true)} />
           <BarraCategorias categorias={comItens} busca={busca} setBusca={setBusca} />
 
           {busca !== null && termo ? (
@@ -216,7 +242,9 @@ function textoBeneficio(cupom: CupomCardapio) {
   return `${brl(Number(cupom.valor))} de desconto`;
 }
 
-function Cabecalho({ empresa, abrirInfo }: { empresa: EmpresaPublica; abrirInfo: () => void }) {
+function Cabecalho({ empresa, statusLoja, abrirInfo }: {
+  empresa: EmpresaPublica; statusLoja: StatusLoja; abrirInfo: () => void;
+}) {
   return (
     <header className="p-3 sm:p-4">
       <div className="relative aspect-[5/2] overflow-hidden rounded-2xl sm:aspect-[4/1]"
@@ -243,8 +271,8 @@ function Cabecalho({ empresa, abrirInfo }: { empresa: EmpresaPublica; abrirInfo:
       <div className="px-2 pt-3">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-bold">{empresa.nome}</h1>
-          <span className={`rounded-full px-2.5 py-0.5 text-sm font-semibold ${empresa.aberto ? "bg-emerald-100 text-emerald-800" : "bg-neutral-200 text-neutral-700"}`}>
-            {empresa.aberto ? "Aberto" : "Fechado"}
+          <span className={`rounded-full px-2.5 py-0.5 text-sm font-semibold ${statusLoja.aberto ? "bg-emerald-100 text-emerald-800" : "bg-neutral-200 text-neutral-700"}`}>
+            {statusLoja.aberto ? "Aberto" : "Fechado"}
           </span>
         </div>
         {empresa.descricao && <p className="mt-1 line-clamp-2 text-sm text-neutral-600">{empresa.descricao}</p>}
@@ -261,7 +289,7 @@ function Cabecalho({ empresa, abrirInfo }: { empresa: EmpresaPublica; abrirInfo:
             </span>
           )}
         </div>
-        {!empresa.aberto && (
+        {!statusLoja.aberto && (
           <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
             Estamos fechados no momento. Você pode ver o cardápio, mas não fazer pedidos.
           </p>
