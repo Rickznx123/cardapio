@@ -9,6 +9,7 @@ import { input, rotulo, supabase } from "./ui";
 type Envio = {
   id: string; enviado_em: string; status: "pendente" | "enviado" | "falhou";
   convertido_pedido_id: string | null; erro: string | null;
+  pedido: { aceite_pendente: boolean } | null;
   cliente: { nome: string | null; telefone: string } | null; cupom: { codigo: string } | null;
 };
 type Metricas = { enviados: number; convertidos: number; faturamento: number };
@@ -28,7 +29,7 @@ export function Recuperador({ empresaId, empresaNome }: { empresaId: string; emp
       supabase.from("recuperador_config").select("*").eq("empresa_id", empresaId).maybeSingle(),
       supabase.rpc("recuperador_metricas", { p_empresa_id: empresaId, p_dias: 30 }),
       supabase.from("recuperador_envios")
-        .select("id,enviado_em,status,convertido_pedido_id,erro,cliente:clientes(nome,telefone),cupom:cupons(codigo)")
+        .select("id,enviado_em,status,convertido_pedido_id,erro,pedido:pedidos!recuperador_envios_convertido_pedido_id_fkey(aceite_pendente),cliente:clientes(nome,telefone),cupom:cupons(codigo)")
         .eq("empresa_id", empresaId).order("enviado_em", { ascending: false }).limit(30),
     ]).then(([c, m, e]) => {
       if (!ativo) return;
@@ -125,7 +126,11 @@ export function Recuperador({ empresaId, empresaNome }: { empresaId: string; emp
               <span className={`rounded-full px-2 py-1 text-xs font-semibold ${e.status === "enviado" ? "bg-emerald-100 text-emerald-800" : e.status === "falhou" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}>
                 {e.status === "enviado" ? "Enviado" : e.status === "falhou" ? "Falhou" : "Pendente"}
               </span>
-              {e.convertido_pedido_id && <span className="text-xs font-semibold text-emerald-700">Convertido</span>}
+              {e.convertido_pedido_id && (
+                <span className={`text-xs font-semibold ${e.pedido?.aceite_pendente ? "text-amber-700" : "text-emerald-700"}`}>
+                  {e.pedido?.aceite_pendente ? "Aguardando aceite" : "Convertido"}
+                </span>
+              )}
               {e.erro && <span title={e.erro} className="w-full truncate text-xs text-red-700">{e.erro}</span>}
             </li>)}
           </ul>

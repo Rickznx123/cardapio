@@ -1,10 +1,11 @@
-import { brl, FORMAS, type FormaPagamento, type StatusPedido, TODAS_FORMAS } from "./tipos";
+import { brl, FORMAS, type FormaPagamento, type StatusPedido, TODAS_FORMAS } from "./tipos.ts";
 
 export type PedidoBalcao = {
   id: string; numero: number; tipo: "mesa" | "entrega" | "retirada"; status: StatusPedido;
+  aceite_pendente: boolean;
   cliente_nome: string | null; cliente_telefone: string | null; endereco: string | null; bairro_nome: string | null;
   taxa_entrega: number; subtotal: number; total: number; observacao: string | null;
-  impresso_em: string | null; created_at: string; comanda_id: string | null;
+  impresso_em: string | null; aceito_em: string | null; created_at: string; comanda_id: string | null;
   forma_pagamento: FormaPagamento | null; troco_para: number | null; pago: boolean; pago_em: string | null;
   desconto: number; cupom_id: string | null; cupons: { codigo: string } | null;
   origem: "web" | "garcom" | "balcao";
@@ -14,8 +15,8 @@ export type PedidoBalcao = {
 };
 
 export const SELECT_PEDIDO =
-  "id, numero, tipo, status, cliente_nome, cliente_telefone, endereco, bairro_nome, taxa_entrega, subtotal, total, " +
-  "observacao, impresso_em, created_at, comanda_id, forma_pagamento, troco_para, pago, pago_em, origem, desconto, cupom_id, cupons(codigo), pedido_itens(nome, preco, quantidade, observacao, ponto_carne), " +
+  "id, numero, tipo, status, aceite_pendente, cliente_nome, cliente_telefone, endereco, bairro_nome, taxa_entrega, subtotal, total, " +
+  "observacao, impresso_em, aceito_em, created_at, comanda_id, forma_pagamento, troco_para, pago, pago_em, origem, desconto, cupom_id, cupons(codigo), pedido_itens(nome, preco, quantidade, observacao, ponto_carne), " +
   "comandas(mesas(numero)), membros(nome)";
 
 export const ORIGEM: Record<PedidoBalcao["origem"], string> = { web: "WEB", garcom: "GARÇOM", balcao: "BALCÃO" };
@@ -102,6 +103,11 @@ export function cuponsPedido(empresa: string, p: PedidoBalcao, config?: Partial<
   const cfg = configImpressao(config);
   const vias = Array.from({ length: Math.min(3, Math.max(1, cfg.vias)) }, () => cupomPedido(empresa, p, cfg));
   return cfg.via_cozinha_sem_precos ? [...vias, cupomPedido(empresa, p, cfg, true)] : vias;
+}
+
+export function comandasPedidoAceito(empresa: string, p: PedidoBalcao, config?: Partial<ConfigImpressao> | null) {
+  const cfg = configImpressao(config);
+  return [cupomPedido(empresa, p, cfg, true), cupomPedido(empresa, p, cfg)];
 }
 
 // Pré-conta da mesa: todos os pedidos não cancelados da comanda.

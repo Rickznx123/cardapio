@@ -8,8 +8,8 @@ export const brl = (n: number) => Number(n).toLocaleString("pt-BR", { style: "cu
 export const TODAS_FORMAS = Object.keys(FORMAS) as FormaPagamento[];
 
 // Horários por dia da semana (empresas.horarios): ver lib/horarios.ts.
-import type { Horarios } from "./horarios";
-export { DIAS, type Dia, type Horarios, type Turno } from "./horarios";
+import type { Horarios } from "./horarios.ts";
+export { DIAS, type Dia, type Horarios, type Turno } from "./horarios.ts";
 
 // Tempo estimado em texto: "30–45 min", "~20 min" ou null.
 export function textoTempo(min: number | null, max?: number | null) {
@@ -36,9 +36,10 @@ export type ItemPublico = {
 export type BairroPublico = { id: string; nome: string; taxa: number; pedido_minimo: number };
 
 // Retorno da RPC ver_pedido_publico (sem telefone/endereço).
-export type StatusPedido = "novo" | "preparo" | "pronto" | "saiu" | "entregue" | "cancelado";
+export type StatusPedido = "novo" | "aguardando_aceite" | "preparo" | "pronto" | "saiu" | "entregue" | "cancelado";
 export const STATUS: Record<StatusPedido, string> = {
-  novo: "Recebido", preparo: "Em preparo", pronto: "Pronto", saiu: "Saiu para entrega", entregue: "Entregue", cancelado: "Cancelado",
+  novo: "Recebido", aguardando_aceite: "Aguardando confirmação", preparo: "Em preparo", pronto: "Pronto",
+  saiu: "Saiu para entrega", entregue: "Entregue", cancelado: "Cancelado",
 };
 export type PedidoPublico = {
   numero: number; tipo: "entrega" | "retirada"; status: StatusPedido; bairro_nome: string | null;

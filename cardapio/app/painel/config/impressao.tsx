@@ -16,10 +16,11 @@ const code = "block overflow-x-auto whitespace-pre rounded-lg bg-neutral-100 p-3
 // Pedido fictício para a prévia e o teste de impressão.
 const exemplo = (): PedidoBalcao => ({
   id: "teste", numero: 123, tipo: "entrega", status: "novo", origem: "web",
+  aceite_pendente: false,
   cliente_nome: "Cliente Teste", cliente_telefone: "(66) 99999-0000", endereco: "Rua das Flores, 100", bairro_nome: "Centro",
   taxa_entrega: 5, subtotal: 54.8, total: 49.8, desconto: 10, cupom_id: "cupom-teste",
   cupons: { codigo: "BEMVINDO" }, observacao: "Sem talher",
-  impresso_em: null, created_at: new Date().toISOString(), comanda_id: null,
+  impresso_em: null, aceito_em: null, created_at: new Date().toISOString(), comanda_id: null,
   forma_pagamento: "dinheiro", troco_para: 100, pago: false, pago_em: null,
   pedido_itens: [
     { nome: "X-Burger", preco: 24.9, quantidade: 2, observacao: "sem cebola", ponto_carne: "Ao ponto" },
@@ -53,7 +54,10 @@ export function Impressao({ empresa, mudou }: { empresa: Empresa; mudou: (e: Emp
       <section className={`${card} space-y-3`}>
         <label className="flex cursor-pointer items-center justify-between gap-3">
           <span><span className="block font-medium">Impressão automática neste aparelho</span>
-            <span className="text-sm text-neutral-500">Cada pedido novo sai na impressora padrão assim que chega. Vale só para este computador.</span></span>
+            <span className="text-sm text-neutral-500">
+              Pedidos de mesa, garçom e balcão podem sair ao chegar. Delivery e retirada da web só imprimem após o aceite,
+              sempre com uma comanda da cozinha e outra do caixa.
+            </span></span>
           <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} className={check} />
         </label>
       </section>

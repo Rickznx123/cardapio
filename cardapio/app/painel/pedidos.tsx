@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useEffectEvent, useState, useSyncExternalStore } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
-  Ban, CheckCheck, Clock, Eye, MessageCircle, MoreVertical, Plus, Printer, Search, VolumeX, Wallet, Wifi, WifiOff,
+  Ban, Check, CheckCheck, Clock, Eye, MessageCircle, MoreVertical, Plus, Printer, Search, Volume2, VolumeX, Wallet, Wifi, WifiOff,
 } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { EscolhaPagamento } from "@/components/pagamento";
 import { toast } from "@/components/toast";
 import { useArmazenado } from "@/lib/armazenado";
-import { type ConfigImpressao, cuponsPedido, ORIGEM, type PedidoBalcao, SELECT_PEDIDO } from "@/lib/cupom";
+import { comandasPedidoAceito, type ConfigImpressao, cuponsPedido, ORIGEM, type PedidoBalcao, SELECT_PEDIDO } from "@/lib/cupom";
 import { diaOperacional, inicioDiaOperacional } from "@/lib/horarios";
 import { imprimir } from "@/lib/impressao";
 import { createClient } from "@/lib/supabase/client";
@@ -28,12 +28,14 @@ type Filtro = "tudo" | "novo" | "preparo" | "pronto";
 
 const ABAS: [Aba, string][] = [["retirada", "Balcão"], ["entrega", "Delivery"], ["mesa", "Mesas"]];
 const FILTROS: [Filtro, string][] = [["tudo", "Tudo"], ["novo", "Novo"], ["preparo", "Em preparo"], ["pronto", "Pronto"]];
-const ATIVOS: StatusPedido[] = ["novo", "preparo", "pronto", "saiu"];
+const ATIVOS: StatusPedido[] = ["novo", "aguardando_aceite", "preparo", "pronto", "saiu"];
 const ROTULO_STATUS: Record<StatusPedido, string> = {
-  novo: "Novo", preparo: "Em preparo", pronto: "Pronto", saiu: "Saiu p/ entrega", entregue: "Entregue", cancelado: "Cancelado",
+  novo: "Novo", aguardando_aceite: "Aguardando aceite", preparo: "Em preparo", pronto: "Pronto",
+  saiu: "Saiu p/ entrega", entregue: "Entregue", cancelado: "Cancelado",
 };
 const COR_STATUS: Record<StatusPedido, string> = {
   novo: "bg-rose-600 text-white",
+  aguardando_aceite: "bg-amber-500 text-black",
   preparo: "bg-amber-400 text-black",
   pronto: "bg-emerald-600 text-white",
   saiu: "bg-sky-600 text-white",
@@ -46,23 +48,6 @@ const COR_ORIGEM: Record<PedidoBalcao["origem"], string> = {
   balcao: "border-amber-600 text-amber-700 dark:text-amber-300",
 };
 
-// Som de alerta sem arquivo. O navegador só libera áudio após um toque na página.
-let audio: AudioContext | null = null;
-function bip() {
-  try {
-    audio ??= new AudioContext();
-    [0, 0.3].forEach((t) => {
-      const o = audio!.createOscillator();
-      const g = audio!.createGain();
-      o.frequency.value = 880;
-      g.gain.value = 0.3;
-      o.connect(g).connect(audio!.destination);
-      o.start(audio!.currentTime + t);
-      o.stop(audio!.currentTime + t + 0.18);
-    });
-  } catch {}
-}
-
 // Relógio que avança a cada 30s (fora do render: cacheComponents proíbe Date.now() no prerender).
 let agoraAtual = 0;
 function assinarRelogio(avisar: () => void) {
@@ -73,7 +58,15 @@ function assinarRelogio(avisar: () => void) {
 const useAgora = () => useSyncExternalStore(assinarRelogio, () => agoraAtual, () => 0);
 
 const buscarPedido = async (id: string) =>
-  (await supabase.from("pedidos").select(SELECT_PEDIDO).eq("id", id).maybeSingle()).data as PedidoBalcao | null;
+  supabase.from("pedidos").select(SELECT_PEDIDO).eq("id", id).maybeSingle().then(({ data, error }) => {
+    if (error) {
+      toast.erro(error.message);
+      return null;
+    }
+    if (!data) return null;
+    const pedido = data as unknown as PedidoBalcao;
+    return { ...pedido, status: pedido.aceite_pendente ? "aguardando_aceite" : pedido.status };
+  });
 const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 // Início do dia de trabalho (vira às empresas.virada_dia): pedido de 01:00 de domingo conta no sábado.
 const inicioDoDia = (agora: number, virada: string) => inicioDiaOperacional(diaOperacional(new Date(agora), virada), virada);
@@ -86,20 +79,80 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
   const [filtro, setFiltro] = useState<Filtro>("tudo");
   const [busca, setBusca] = useState("");
   const [versaoMesas, setVersaoMesas] = useState(0);
-  const [somLiberado, setSomLiberado] = useState(false);
+  const [somAtivado, setSomAtivado] = useState(false);
+  const [erroSom, setErroSom] = useState(false);
   const [novo, setNovo] = useState(false);
   const [detalhe, setDetalhe] = useState<PedidoBalcao | null>(null);
+  const [recusando, setRecusando] = useState<PedidoBalcao | null>(null);
+  const [motivoRecusa, setMotivoRecusa] = useState("");
+  const [aceitandoId, setAceitandoId] = useState<string | null>(null);
+  const [recusandoId, setRecusandoId] = useState<string | null>(null);
   const [pagando, setPagando] = useState<{ p: PedidoBalcao; finalizar: boolean } | null>(null);
   const [auto, setAuto] = useArmazenado("balcao:impressao-automatica", true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const agora = useAgora();
+  const pendentes = pedidos.filter((p) => p.status === "aguardando_aceite");
+  const haPendente = pendentes.length > 0;
 
-  // Reivindica a impressão no banco: só a aba que conseguir setar impresso_em imprime (evita cupom duplicado).
-  async function imprimirSeNinguem(p: PedidoBalcao) {
+  function obterAudio() {
+    const player = audioRef.current ?? new Audio("/sounds/novo-pedido.mp3");
+    audioRef.current = player;
+    player.loop = true;
+    const contexto = audioContextRef.current ?? new AudioContext();
+    audioContextRef.current = contexto;
+    if (!audioSourceRef.current) {
+      audioSourceRef.current = contexto.createMediaElementSource(player);
+      audioSourceRef.current.connect(contexto.destination);
+    }
+    return { player, contexto };
+  }
+
+  async function ativarSom() {
+    try {
+      setErroSom(false);
+      const { player, contexto } = obterAudio();
+      const retomada = contexto.resume();
+      const reproducao = haPendente ? player.play() : Promise.resolve();
+      await Promise.all([retomada, reproducao]);
+      setSomAtivado(true);
+    } catch (erro) {
+      console.error("Falha ao ativar o som de pedidos:", erro);
+      setSomAtivado(false);
+      setErroSom(true);
+      toast.erro("Não foi possível ativar o som. Verifique as permissões de áudio do navegador.");
+    }
+  }
+
+  useEffect(() => {
+    const player = audioRef.current;
+    if (!player) return;
+    if (!somAtivado || !haPendente) {
+      player.pause();
+      if (Number.isFinite(player.duration)) player.currentTime = 0;
+      return;
+    }
+    player.play().then(() => {
+      setErroSom(false);
+    }).catch((erro: unknown) => {
+      console.error("Falha ao tocar o alerta de pedido:", erro);
+      setSomAtivado(false);
+      setErroSom(true);
+    });
+  }, [somAtivado, haPendente]);
+
+  // O banco decide qual painel pode imprimir; o mesmo campo trava as duas comandas.
+  async function imprimirSeNinguem(p: PedidoBalcao, aposAceite = false) {
     const quando = new Date().toISOString();
-    const { data } = await supabase.from("pedidos").update({ impresso_em: quando })
+    const { data, error } = await supabase.from("pedidos").update({ impresso_em: quando })
       .eq("id", p.id).is("impresso_em", null).select("id");
+    if (error) return toast.erro(error.message);
     if (!data?.length) return;
-    cuponsPedido(equipe.nome, p, equipe.config).forEach((html) => imprimir(html));
+    const comandas = aposAceite
+      ? comandasPedidoAceito(equipe.nome, p, equipe.config)
+      : cuponsPedido(equipe.nome, p, equipe.config);
+    comandas.forEach((html) => imprimir(html));
     guardar({ ...p, impresso_em: quando });
   }
 
@@ -112,8 +165,11 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
   const receber = useEffectEvent((p: PedidoBalcao, chegou: boolean) => {
     guardar(p);
     if (p.comanda_id) setVersaoMesas((v) => v + 1);
-    if (chegou) toast.ok(`Novo pedido #${p.numero}`);
-    if (auto && p.status === "novo" && !p.impresso_em) imprimirSeNinguem(p);
+    if (chegou) toast.ok(p.status === "aguardando_aceite"
+      ? `Novo pedido #${p.numero} aguardando aceite`
+      : `Novo pedido #${p.numero}`);
+    if (p.status === "preparo" && p.aceito_em && !p.impresso_em) imprimirSeNinguem(p, true);
+    else if (auto && p.status === "novo" && !p.impresso_em) imprimirSeNinguem(p);
   });
 
   // Refaz o fetch completo (ao conectar e a cada reconexão) para não perder nada que chegou offline.
@@ -121,14 +177,17 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
     const desde = inicioDoDia(Date.now(), equipe.virada).toISOString();
     const { data, error } = await supabase.from("pedidos").select(SELECT_PEDIDO)
       .eq("empresa_id", equipe.empresa_id).neq("status", "cancelado")
-      .or(`status.in.(novo,preparo,pronto,saiu),created_at.gte.${desde}`)
+      .or(`aceite_pendente.eq.true,status.in.(novo,preparo,pronto,saiu),created_at.gte.${desde}`)
       .order("created_at");
     if (error) return toast.erro(error.message);
-    const lista = data as unknown as PedidoBalcao[];
+    const lista = (data as unknown as PedidoBalcao[])
+      .map((p) => ({ ...p, status: p.aceite_pendente ? "aguardando_aceite" : p.status }));
     setPedidos(lista);
     setCarregado(true);
     setVersaoMesas((v) => v + 1);
-    if (auto) lista.filter((p) => p.status === "novo" && !p.impresso_em).forEach(imprimirSeNinguem);
+    lista.filter((p) => p.status === "preparo" && p.aceito_em && !p.impresso_em)
+      .forEach((p) => imprimirSeNinguem(p, true));
+    if (auto) lista.filter((p) => p.status === "novo" && !p.impresso_em).forEach((p) => imprimirSeNinguem(p));
   });
 
   const empresaId = equipe.empresa_id;
@@ -146,7 +205,6 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
             const id = (payload.new as { id?: string }).id;
             if (!id) return;
             const chegou = payload.eventType === "INSERT";
-            if (chegou) bip();
             // Não usa o payload: no INSERT o pedido ainda está com total 0 e sem itens.
             buscarPedido(id).then((p) => p && receber(p, chegou));
           })
@@ -182,6 +240,50 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
     guardar({ ...p, status });
   }
 
+  async function aceitar(p: PedidoBalcao) {
+    setAceitandoId(p.id);
+    try {
+      const { data, error } = await supabase.rpc("aceitar_pedido", { p_id: p.id });
+      if (error) return toast.erro(error.message);
+      if (!data) {
+        toast.ok(`O pedido #${p.numero} já foi processado em outro painel`);
+        return;
+      }
+      const atualizado = await buscarPedido(p.id);
+      if (atualizado) {
+        guardar(atualizado);
+        if (atualizado.aceito_em && !atualizado.impresso_em) imprimirSeNinguem(atualizado, true);
+      }
+      toast.ok(`Pedido #${p.numero} aceito e enviado para preparo`);
+    } finally {
+      setAceitandoId(null);
+    }
+  }
+
+  async function confirmarRecusa() {
+    if (!recusando) return;
+    const p = recusando;
+    setRecusandoId(p.id);
+    try {
+      const { data, error } = await supabase.rpc("recusar_pedido", {
+        p_id: p.id,
+        p_motivo: motivoRecusa,
+      });
+      if (error) return toast.erro(error.message);
+      if (!data) {
+        toast.ok(`O pedido #${p.numero} já foi processado em outro painel`);
+        setRecusando(null);
+        return;
+      }
+      const atualizado = await buscarPedido(p.id);
+      if (atualizado) guardar(atualizado);
+      setRecusando(null);
+      toast.ok(`Pedido #${p.numero} recusado`);
+    } finally {
+      setRecusandoId(null);
+    }
+  }
+
   async function cancelar(p: PedidoBalcao) {
     if (!confirm(`Cancelar o pedido #${p.numero}?`)) return;
     const { error } = await supabase.rpc("cancelar_pedido", { p_id: p.id });
@@ -204,10 +306,13 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
   }
 
   const hoje = inicioDoDia(agora, equipe.virada).getTime();
-  const totalDia = pedidos.filter((p) => Date.parse(p.created_at) >= hoje).reduce((s, p) => s + Number(p.total), 0);
+  const totalDia = pedidos
+    .filter((p) => p.status !== "aguardando_aceite" && Date.parse(p.created_at) >= hoje)
+    .reduce((s, p) => s + Number(p.total), 0);
   const ativosPor = (t: Aba) => pedidos.filter((p) => p.tipo === t && ATIVOS.includes(p.status)).length;
   const termo = normalizar(busca.trim().replace(/^#/, ""));
   const lista = pedidos
+    .filter((p) => p.status !== "aguardando_aceite")
     .filter((p) => p.tipo === aba)
     .filter((p) => filtro === "tudo" || p.status === filtro)
     .filter((p) => !termo || String(p.numero) === termo || normalizar(p.cliente_nome ?? "").includes(termo))
@@ -221,8 +326,7 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
   const prontos = pedidos.filter((p) => p.tipo === aba && (p.status === "pronto" || p.status === "saiu"));
 
   return (
-    <section hidden={!visivel} className="flex min-h-full flex-col"
-      onPointerDown={() => { if (!somLiberado) { audio ??= new AudioContext(); audio.resume(); setSomLiberado(true); } }}>
+    <section hidden={!visivel} className="flex min-h-full flex-col">
       <header className="flex flex-wrap items-center gap-3 border-b border-neutral-200 bg-white px-4 py-3 lg:px-6 dark:border-neutral-800 dark:bg-neutral-900">
         <div className="mr-auto">
           <h1 className="text-xl font-bold">Pedidos</h1>
@@ -232,6 +336,24 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
           online ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "animate-pulse bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"}`}>
           {online ? <Wifi className="size-4" /> : <WifiOff className="size-4" />} {online ? "Ao vivo" : "Reconectando…"}
         </span>
+        <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${
+          somAtivado ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"}`}>
+          {somAtivado ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+          Som {somAtivado ? "ativo" : "inativo"}{somAtivado && haPendente ? " · tocando" : ""}
+        </span>
+        <button type="button" aria-pressed={somAtivado}
+          onClick={() => {
+            if (somAtivado) {
+              audioRef.current?.pause();
+              setSomAtivado(false);
+            } else {
+              void ativarSom();
+            }
+          }}
+          className="flex h-10 items-center gap-2 rounded-lg border border-neutral-300 px-3 font-semibold hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800">
+          {somAtivado ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+          {somAtivado ? "Desativar som" : "Ativar som"}
+        </button>
         <label className="flex cursor-pointer items-center gap-2 rounded-full border border-neutral-300 px-3 py-1 text-sm font-medium dark:border-neutral-700">
           <Printer className="size-4" /> Impressão automática
           <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} className="size-4 accent-rose-600" />
@@ -246,9 +368,15 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
           className="flex h-10 items-center gap-2 rounded-lg bg-rose-600 px-4 font-semibold text-white hover:bg-rose-700">
           <Plus className="size-5" /> Novo pedido
         </button>
-        {!somLiberado && (
-          <span className="flex w-full items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-1.5 text-sm font-medium text-amber-900">
-            <VolumeX className="size-4" /> Toque na tela para ativar o som de novos pedidos
+        {haPendente && !somAtivado && (
+          <span role="alert" className="flex w-full items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-950">
+            <VolumeX className="size-4" />
+            Há {pendentes.length} pedido(s) aguardando confirmação. Ative o som para ouvir o alerta em loop.
+          </span>
+        )}
+        {erroSom && (
+          <span role="alert" className="w-full rounded-lg bg-red-100 px-3 py-1.5 text-sm font-medium text-red-800">
+            O navegador não permitiu tocar o alerta. Confira as permissões de áudio e ative o som novamente.
           </span>
         )}
       </header>
@@ -278,6 +406,74 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
       <div className="flex-1 space-y-4 p-4 lg:px-6">
         {aba === "mesa" && <Comandas empresaId={equipe.empresa_id} empresaNome={equipe.nome} versao={versaoMesas} formas={equipe.formas} config={equipe.config} />}
 
+        {haPendente && (
+          <section className="rounded-2xl border-2 border-amber-400 bg-amber-50 p-4 shadow-md dark:bg-amber-950/30"
+            aria-labelledby="pedidos-pendentes-titulo">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 id="pedidos-pendentes-titulo" className="text-lg font-bold text-amber-950 dark:text-amber-100">
+                Aguardando aceite ({pendentes.length})
+              </h2>
+              <span className="text-sm font-medium text-amber-900 dark:text-amber-200">Aceite automático após 5 minutos</span>
+            </div>
+            <ul className="space-y-3">
+              {pendentes.map((p) => {
+                const ocupado = aceitandoId === p.id || recusandoId === p.id;
+                return (
+                  <li key={p.id} className="rounded-xl border border-amber-300 bg-white p-4 dark:border-amber-800 dark:bg-neutral-900">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-xl font-black">Pedido #{p.numero} · {p.tipo === "entrega" ? "Delivery" : "Retirada"}</p>
+                        <p className="text-sm text-neutral-600 dark:text-neutral-300">
+                          {p.cliente_nome ?? "Cliente"}{p.cliente_telefone ? ` · ${p.cliente_telefone}` : ""}
+                          {" · "}<Decorrido desde={p.created_at} agora={agora} />
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-amber-400 px-3 py-1 text-sm font-bold text-amber-950">
+                        Confirme ou recuse
+                      </span>
+                    </div>
+                    {p.tipo === "entrega" && (
+                      <p className="mt-2 text-sm">
+                        <b>Endereço:</b> {p.endereco || "—"}{p.bairro_nome ? ` · ${p.bairro_nome}` : ""}
+                      </p>
+                    )}
+                    <ul className="mt-3 space-y-1 border-t border-neutral-200 pt-3 text-sm dark:border-neutral-700">
+                      {p.pedido_itens.map((item, n) => (
+                        <li key={`${item.nome}-${n}`}>
+                          {item.quantidade}x {item.nome}
+                          {item.ponto_carne ? ` · Ponto: ${item.ponto_carne}` : ""}
+                          {item.observacao ? ` · ${item.observacao}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                    {p.observacao && <p className="mt-2 text-sm"><b>Observação:</b> {p.observacao}</p>}
+                    <p className="mt-3 text-sm">
+                      Subtotal {brl(p.subtotal)}
+                      {p.tipo === "entrega" ? ` · Entrega ${brl(p.taxa_entrega)}` : ""}
+                      {p.desconto > 0 ? ` · Cupom ${p.cupons?.codigo ?? ""} −${brl(p.desconto)}` : ""}
+                      {` · Total ${brl(p.total)}`}
+                      {p.forma_pagamento ? ` · ${FORMAS[p.forma_pagamento]}` : ""}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button type="button" disabled={ocupado} onClick={() => aceitar(p)}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                        <Check className="size-5" /> {aceitandoId === p.id ? "Aceitando…" : "Aceitar"}
+                      </button>
+                      <button type="button" disabled={ocupado} onClick={() => { setRecusando(p); setMotivoRecusa(""); }}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-red-300 px-5 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950">
+                        <Ban className="size-5" /> Recusar
+                      </button>
+                      <button type="button" onClick={() => setDetalhe(p)} className={`${acao} h-11`}>
+                        <Eye className="size-4" /> Detalhes
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
         {!carregado ? (
           <div className="space-y-2">{[0, 1, 2].map((n) => <div key={n} className="h-24 animate-pulse rounded-xl bg-neutral-200 dark:bg-neutral-800" />)}</div>
         ) : lista.length === 0 ? (
@@ -306,6 +502,33 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
 
       {novo && <NovoPedido empresaId={equipe.empresa_id} formas={equipe.formas} fechar={() => setNovo(false)} />}
       {detalhe && <DetalhesModal p={pedidos.find((x) => x.id === detalhe.id) ?? detalhe} fechar={() => setDetalhe(null)} />}
+      {recusando && (
+        <Modal titulo={`Recusar pedido #${recusando.numero}`} fechar={() => setRecusando(null)}
+          rodape={
+            <div className="flex gap-2">
+              <button type="button" disabled={recusandoId === recusando.id} onClick={() => setRecusando(null)}
+                className="h-11 flex-1 rounded-lg border border-neutral-300 font-semibold dark:border-neutral-700">
+                Voltar
+              </button>
+              <button type="button" disabled={recusandoId === recusando.id} onClick={confirmarRecusa}
+                className="h-11 flex-1 rounded-lg bg-red-600 font-semibold text-white disabled:opacity-50">
+                {recusandoId === recusando.id ? "Recusando…" : "Confirmar recusa"}
+              </button>
+            </div>
+          }>
+          <div className="space-y-3 p-5">
+            <p className="text-sm text-neutral-600 dark:text-neutral-300">
+              O cliente será avisado. O uso do cupom será devolvido. O motivo é opcional.
+            </p>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">Motivo (opcional)</span>
+              <textarea value={motivoRecusa} onChange={(e) => setMotivoRecusa(e.target.value)} maxLength={300} rows={3}
+                placeholder="Ex.: não atendemos esse endereço hoje"
+                className="w-full rounded-lg border border-neutral-300 bg-transparent p-3 dark:border-neutral-700" />
+            </label>
+          </div>
+        </Modal>
+      )}
       {pagando && (
         <PagarModal p={pagando.p} finalizar={pagando.finalizar} formas={equipe.formas} empresaId={equipe.empresa_id}
           fechar={() => setPagando(null)} salvo={(campos) => { guardar({ ...pagando.p, ...campos }); setPagando(null); }} />

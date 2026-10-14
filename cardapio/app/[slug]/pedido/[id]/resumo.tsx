@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Bike, ChefHat, CircleCheck, CircleX, MessageCircle, PackageCheck, Receipt, Store } from "lucide-react";
+import { Bike, ChefHat, CircleCheck, CircleX, Clock, MessageCircle, PackageCheck, Receipt, Store } from "lucide-react";
 import { varsCor } from "@/lib/cor";
 import { createClient } from "@/lib/supabase/client";
 import { brl, FORMAS, type PedidoPublico, STATUS } from "@/lib/tipos";
@@ -84,12 +84,15 @@ export function Pedido() {
   const etapas = ETAPAS.filter((e) => e.s !== "saiu" || p.tipo === "entrega");
   const etapa = etapas.findIndex((e) => e.s === p.status);
   const cancelado = p.status === "cancelado";
+  const aguardandoAceite = p.status === "aguardando_aceite";
 
   return casca(
     <>
       <section className="rounded-3xl bg-white p-6 text-center shadow-sm">
         {cancelado ? (
           <CircleX className="mx-auto size-16 text-red-600" />
+        ) : aguardandoAceite ? (
+          <Clock className="mx-auto size-16 text-amber-500" />
         ) : (
           <CircleCheck className="mx-auto size-16 text-emerald-600" />
         )}
@@ -102,6 +105,10 @@ export function Pedido() {
 
         {cancelado ? (
           <p className="mt-4 rounded-xl bg-red-50 p-3 font-semibold text-red-700">Pedido cancelado. Fale com o estabelecimento.</p>
+        ) : aguardandoAceite ? (
+          <p className="mt-4 rounded-xl bg-amber-50 p-3 font-semibold text-amber-900">
+            Aguardando confirmação do restaurante
+          </p>
         ) : (
           <ol className={`mt-6 grid gap-1 ${etapas.length === 5 ? "grid-cols-5" : "grid-cols-4"}`} aria-label="Andamento do pedido">
             {etapas.map(({ s, Icone }, n) => (

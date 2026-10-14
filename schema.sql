@@ -4,6 +4,7 @@
 -- =====================================================================
 
 create extension if not exists pgcrypto;
+create extension if not exists pg_cron;
 
 -- ---------- ENUMS ----------
 create type papel_membro  as enum ('dono', 'garcom', 'caixa');
@@ -159,6 +160,7 @@ create table pedidos (
   membro_id         uuid references membros(id),    -- garçom que lançou
   cliente_nome      text,
   cliente_telefone  text,
+  cancelamento_motivo text,
   endereco          text,
   bairro_id         uuid references bairros(id),
   bairro_nome       text,                           -- snapshot
@@ -167,10 +169,12 @@ create table pedidos (
   total             numeric(10,2) not null default 0,
   observacao        text,
   impresso_em       timestamptz,
+  aceite_pendente   boolean not null default false,
   forma_pagamento   forma_pagamento,
   troco_para        numeric(10,2) check (troco_para is null or troco_para >= 0),
   pago              boolean not null default false,
   pago_em           timestamptz,
+  aceito_em         timestamptz,
   origem            origem_pedido not null default 'web',
   caixa_id          uuid references caixas(id),       -- caixa em que foi recebido (trigger pedidos_caixa)
   created_at        timestamptz not null default now(),
@@ -430,6 +434,7 @@ language plpgsql security definer set search_path = public
 as $$
 declare
   v_emp empresas%rowtype;
+  v_pedido json;
 begin
   select * into v_emp from empresas where slug = p_slug and ativo;
   if not found then raise exception 'Empresa não encontrada'; end if;
@@ -560,7 +565,9 @@ returns json
 language sql stable security definer set search_path = public
 as $$
   select json_build_object(
-    'numero', p.numero, 'tipo', p.tipo, 'status', p.status, 'bairro_nome', p.bairro_nome,
+    'numero', p.numero, 'tipo', p.tipo,
+    'status', case when p.aceite_pendente then 'aguardando_aceite' else p.status::text end,
+    'bairro_nome', p.bairro_nome,
     'taxa', p.taxa_entrega, 'subtotal', p.subtotal, 'total', p.total, 'created_at', p.created_at,
     'forma_pagamento', p.forma_pagamento, 'troco_para', p.troco_para, 'pago', p.pago,
     'itens', coalesce((
@@ -597,6 +604,81 @@ begin
 end;
 $$;
 grant execute on function public.cancelar_pedido(uuid) to authenticated;
+
+-- Só o painel (ou o agendador) pode aceitar/recusar pedidos públicos pendentes.
+create or replace function public.aceitar_pedido(p_id uuid)
+returns boolean
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_ped pedidos%rowtype;
+begin
+  select * into v_ped from pedidos where id = p_id for update;
+  if not found then raise exception 'Pedido não encontrado'; end if;
+  if not e_membro(v_ped.empresa_id, '{dono,caixa}') then raise exception 'Sem permissão'; end if;
+  if v_ped.origem <> 'web' or v_ped.tipo not in ('entrega', 'retirada') then
+    raise exception 'Somente pedidos web de entrega ou retirada podem ser aceitos por esta ação';
+  end if;
+  if not v_ped.aceite_pendente then return false; end if;
+
+  update pedidos set status = 'preparo', aceite_pendente = false, aceito_em = now() where id = p_id;
+  return true;
+end;
+$$;
+grant execute on function public.aceitar_pedido(uuid) to authenticated;
+
+create or replace function public.recusar_pedido(p_id uuid, p_motivo text default null)
+returns boolean
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_ped pedidos%rowtype;
+begin
+  select * into v_ped from pedidos where id = p_id for update;
+  if not found then raise exception 'Pedido não encontrado'; end if;
+  if not e_membro(v_ped.empresa_id, '{dono,caixa}') then raise exception 'Sem permissão'; end if;
+  if v_ped.origem <> 'web' or v_ped.tipo not in ('entrega', 'retirada') then
+    raise exception 'Somente pedidos web de entrega ou retirada podem ser recusados por esta ação';
+  end if;
+  if not v_ped.aceite_pendente then return false; end if;
+
+  if v_ped.cupom_id is not null then
+    update cupons set usos = greatest(usos - 1, 0) where id = v_ped.cupom_id;
+    update recuperador_envios set convertido_pedido_id = null where convertido_pedido_id = p_id;
+  end if;
+
+  update pedidos
+  set status = 'cancelado', aceite_pendente = false, cancelamento_motivo = nullif(trim(p_motivo), '')
+  where id = p_id;
+  return true;
+end;
+$$;
+grant execute on function public.recusar_pedido(uuid, text) to authenticated;
+
+create or replace function public.aceitar_pedidos_expirados()
+returns integer
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_quantidade integer;
+begin
+  update pedidos
+  set status = 'preparo', aceite_pendente = false, aceito_em = now()
+  where aceite_pendente
+    and origem = 'web'
+    and tipo in ('entrega', 'retirada')
+    and created_at <= now() - interval '5 minutes';
+  get diagnostics v_quantidade = row_count;
+  return v_quantidade;
+end;
+$$;
+revoke all on function public.aceitar_pedidos_expirados() from public, anon, authenticated;
+
+select cron.schedule(
+  'aceitar-pedidos-expirados',
+  '* * * * *',
+  'select public.aceitar_pedidos_expirados();'
+);
 
 -- ---------- CAIXA, RELATÓRIO, LOJA, REORDENAR (007) ----------
 -- Ao marcar pago, exige caixa aberto, liga o pedido a ele e grava pago_em com a hora do servidor.
@@ -836,7 +918,7 @@ begin
       select * from pedidos
       where empresa_id = p_empresa_id and created_at >= p_inicio and created_at < p_fim
     ),
-    validos as (select * from base where status <> 'cancelado')
+    validos as (select * from base where status <> 'cancelado' and not aceite_pendente)
     select json_build_object(
       'faturamento', coalesce((select sum(total) from validos), 0),
       'pedidos', (select count(*) from validos),
@@ -1078,7 +1160,7 @@ language sql security definer set search_path = public
 as $$
   update clientes c set total_pedidos = x.n, total_gasto = x.v, primeiro_pedido = x.primeiro, ultimo_pedido = x.ultimo
   from (select count(*) as n, coalesce(sum(total), 0) as v, min(created_at) as primeiro, max(created_at) as ultimo
-        from pedidos where cliente_id = p_cliente and status <> 'cancelado') x
+        from pedidos where cliente_id = p_cliente and status <> 'cancelado' and not aceite_pendente) x
   where c.id = p_cliente;
 $$;
 revoke all on function public._recalcular_cliente(uuid) from public, anon, authenticated;
@@ -1315,8 +1397,12 @@ begin
   if p_tipo = 'entrega' and not v_emp.aceita_entrega then raise exception 'Empresa não faz entrega'; end if;
   if p_tipo = 'retirada' and not v_emp.aceita_retirada then raise exception 'Empresa não aceita retirada'; end if;
 
-  return _criar_pedido_externo(v_emp.id, p_tipo, p_itens, p_cliente_nome, p_cliente_telefone, p_endereco,
-                               p_bairro_id, p_observacao, p_forma_pagamento, p_troco_para, 'web', true, p_cupom);
+  v_pedido := _criar_pedido_externo(v_emp.id, p_tipo, p_itens, p_cliente_nome, p_cliente_telefone, p_endereco,
+                                    p_bairro_id, p_observacao, p_forma_pagamento, p_troco_para, 'web', true, p_cupom);
+  if p_tipo in ('entrega', 'retirada') then
+    update pedidos set status = 'novo', aceite_pendente = true where id = (v_pedido ->> 'id')::uuid;
+  end if;
+  return v_pedido;
 end;
 $$;
 grant execute on function public.criar_pedido_publico(text, tipo_pedido, jsonb, text, text, forma_pagamento, text, uuid, text, numeric, text)
@@ -1542,7 +1628,8 @@ begin
       where empresa_id = p_empresa_id and status = 'enviado' and enviado_em >= now() - make_interval(days => p_dias)
     ),
     convertidos as (
-      select p.total from envios e join pedidos p on p.id = e.convertido_pedido_id where p.status <> 'cancelado'
+      select p.total from envios e join pedidos p on p.id = e.convertido_pedido_id
+      where p.status <> 'cancelado' and not p.aceite_pendente
     )
     select json_build_object(
       'enviados', (select count(*) from envios),
@@ -1568,7 +1655,7 @@ begin
       select * from pedidos
       where empresa_id = p_empresa_id and created_at >= p_inicio and created_at < p_fim
     ),
-    validos as (select * from base where status <> 'cancelado')
+    validos as (select * from base where status <> 'cancelado' and not aceite_pendente)
     select json_build_object(
       'faturamento', coalesce((select sum(total) from validos), 0),
       'pedidos', (select count(*) from validos),
@@ -1695,7 +1782,9 @@ returns json
 language sql stable security definer set search_path = public
 as $$
   select json_build_object(
-    'numero', p.numero, 'tipo', p.tipo, 'status', p.status, 'bairro_nome', p.bairro_nome,
+    'numero', p.numero, 'tipo', p.tipo,
+    'status', case when p.aceite_pendente then 'aguardando_aceite' else p.status::text end,
+    'bairro_nome', p.bairro_nome,
     'taxa', p.taxa_entrega, 'subtotal', p.subtotal, 'total', p.total, 'created_at', p.created_at,
     'forma_pagamento', p.forma_pagamento, 'troco_para', p.troco_para, 'pago', p.pago,
     'desconto', p.desconto, 'cupom', (select codigo from cupons where id = p.cupom_id),
