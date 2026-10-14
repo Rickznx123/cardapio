@@ -19,10 +19,10 @@ const ETAPAS = ["Sacola", "Entrega", "Revisar"] as const;
 
 type Props = {
   empresa: EmpresaPublica; bairros: BairroPublico[]; linhas: LinhaCarrinho[]; porId: Map<string, ItemPublico>;
-  subtotal: number; setLinhas: (l: LinhaCarrinho[]) => void; fechar: () => void;
+  subtotal: number; cupomInicial?: string | null; setLinhas: (l: LinhaCarrinho[]) => void; fechar: () => void;
 };
 
-export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas, fechar }: Props) {
+export function Checkout({ empresa, bairros, linhas, porId, subtotal, cupomInicial, setLinhas, fechar }: Props) {
   const router = useRouter();
   const [etapa, setEtapa] = useState(0);
   const [tipo, setTipo] = useState<"entrega" | "retirada">(empresa.aceita_entrega ? "entrega" : "retirada");
@@ -52,11 +52,11 @@ export function Checkout({ empresa, bairros, linhas, porId, subtotal, setLinhas,
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const codigo = params.get("cupom");
+    const codigo = params.get("cupom") ?? cupomInicial;
     if (!codigo) return;
     const timer = window.setTimeout(() => setCupom(codigo.toUpperCase()), 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [cupomInicial]);
 
   useEffect(() => {
     if (telefoneDigitos.length < 10) return;

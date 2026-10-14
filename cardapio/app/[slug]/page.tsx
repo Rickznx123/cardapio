@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { createAdminClient, createPublicClient } from "@/lib/supabase/server";
 import type { BairroPublico, CategoriaPublica, EmpresaPublica, ItemPublico } from "@/lib/tipos";
-import { Cardapio } from "./cardapio";
+import { Cardapio, type CupomCardapio } from "./cardapio";
 
 export default function Page({ params }: PageProps<"/[slug]">) {
   return (
@@ -29,14 +29,16 @@ async function Conteudo({ params }: { params: Promise<{ slug: string }> }) {
     return <Indisponivel nome={inativa.nome} />;
   }
 
-  const [{ data: liberada }, categorias, itens, bairros] = await Promise.all([
+  const [{ data: liberada }, categorias, itens, bairros, cupons] = await Promise.all([
     supabase.rpc("empresa_liberada", { p_empresa: empresa.id }),
     supabase.from("categorias").select("id, nome").eq("empresa_id", empresa.id).eq("ativo", true).order("ordem"),
     supabase.from("itens").select("id, categoria_id, nome, descricao, preco, foto_url, disponivel, destaque, ponto_carne_ativo, ponto_carne_opcoes, ponto_carne_obrigatorio")
       .eq("empresa_id", empresa.id).order("ordem"),
     supabase.from("bairros").select("id, nome, taxa, pedido_minimo").eq("empresa_id", empresa.id).eq("ativo", true).order("nome"),
+    supabase.rpc("cupons_publicos_cardapio", { p_slug: slug }),
   ]);
   if (!liberada) return <Indisponivel nome={empresa.nome} />; // teste grátis vencido / plano encerrado
+  if (cupons.error) throw new Error("Não foi possível carregar as ofertas do cardápio.", { cause: cupons.error });
 
   return (
     <Cardapio
@@ -44,6 +46,7 @@ async function Conteudo({ params }: { params: Promise<{ slug: string }> }) {
       categorias={(categorias.data ?? []) as CategoriaPublica[]}
       itens={(itens.data ?? []) as ItemPublico[]}
       bairros={(bairros.data ?? []) as BairroPublico[]}
+      cupons={(cupons.data ?? []) as CupomCardapio[]}
     />
   );
 }
