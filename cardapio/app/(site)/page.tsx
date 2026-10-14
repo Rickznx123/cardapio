@@ -39,7 +39,7 @@ const RECURSOS = [
 ];
 
 const FAQ = [
-  ["Preciso de impressora?", "Não. Os pedidos aparecem no painel em tempo real, no computador ou no celular. Se quiser imprimir, qualquer impressora térmica de 58 ou 80 mm ligada a um computador funciona, e nós instalamos para você."],
+  ["Preciso de impressora?", "Sim. É necessária uma impressora térmica de 58 ou 80 mm ligada a um computador para imprimir os pedidos. A instalação está inclusa na configuração."],
   ["Preciso cadastrar tudo sozinho?", "Não. A configuração completa está inclusa no plano: cadastramos seu cardápio e as fotos, geramos os QR Codes das mesas e instalamos a impressora. Sem taxa de setup."],
   ["Funciona no celular?", "Sim. O cardápio do cliente, o app do garçom e o painel funcionam no navegador do celular, sem instalar nada."],
   ["Tem fidelidade?", "Não. O plano é mensal e você usa enquanto fizer sentido para o seu negócio."],
