@@ -1123,6 +1123,7 @@ create table cupons (
   cliente_id     uuid references clientes(id) on delete cascade,       -- cupom exclusivo
   origem         text not null default 'manual' check (origem in ('manual', 'recuperador')),
   ativo          boolean not null default true,
+  mostrar_no_cardapio boolean not null default false,
   created_at     timestamptz not null default now(),
   unique (empresa_id, codigo),
   check (tipo <> 'percentual' or valor <= 100)
@@ -1132,6 +1133,28 @@ alter table cupons enable row level security;
 create policy "caixa le cupons"   on cupons for select using (e_membro(empresa_id, '{dono,caixa}'));
 create policy "dono gerencia cupons" on cupons for all using (e_membro(empresa_id, '{dono}'))
   with check (e_membro(empresa_id, '{dono}') and origem = 'manual');
+
+-- Lista pública com os campos promocionais necessários; clientes exclusivos ficam sempre ocultos.
+create or replace function public.cupons_publicos_cardapio(p_slug text)
+returns table (codigo text, tipo text, valor numeric, pedido_minimo numeric)
+language sql stable security definer set search_path = public
+as $$
+  select c.codigo, c.tipo, c.valor, c.pedido_minimo
+  from cupons c
+  join empresas e on e.id = c.empresa_id
+  where e.slug = p_slug
+    and e.ativo
+    and empresa_liberada(e.id)
+    and c.mostrar_no_cardapio
+    and c.ativo
+    and (c.validade is null or c.validade > now())
+    and (c.usos_max is null or c.usos < c.usos_max)
+    and c.cliente_id is null
+    and (c.tipo <> 'frete_gratis' or e.aceita_entrega)
+  order by c.codigo;
+$$;
+revoke all on function public.cupons_publicos_cardapio(text) from public, anon, authenticated;
+grant execute on function public.cupons_publicos_cardapio(text) to anon, authenticated;
 
 alter table pedidos
   add column cliente_id uuid references clientes(id) on delete set null,

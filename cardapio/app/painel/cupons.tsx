@@ -9,7 +9,7 @@ import { supabase } from "./ui";
 type Tipo = "percentual" | "valor" | "frete_gratis";
 type Cupom = {
   id: string; codigo: string; tipo: Tipo; valor: number; pedido_minimo: number; validade: string | null;
-  usos_max: number | null; usos: number; ativo: boolean; origem: string; cliente_id: string | null;
+  usos_max: number | null; usos: number; ativo: boolean; mostrar_no_cardapio: boolean; origem: string; cliente_id: string | null;
 };
 type Cliente = { id: string; nome: string | null; telefone: string };
 type Formulario = { id?: string; codigo: string; tipo: Tipo; valor: string; pedido_minimo: string; validade: string; usos_max: string; cliente_id: string };
@@ -63,6 +63,12 @@ export function Cupons({ empresaId }: { empresaId: string }) {
 
   async function alternar(c: Cupom) {
     const { error } = await supabase.from("cupons").update({ ativo: !c.ativo }).eq("id", c.id);
+    if (error) return toast.erro(error.message);
+    setVersao((v) => v + 1);
+  }
+
+  async function alternarMostrar(c: Cupom) {
+    const { error } = await supabase.from("cupons").update({ mostrar_no_cardapio: !c.mostrar_no_cardapio }).eq("id", c.id);
     if (error) return toast.erro(error.message);
     setVersao((v) => v + 1);
   }
@@ -123,6 +129,14 @@ export function Cupons({ empresaId }: { empresaId: string }) {
               {` · usos ${c.usos}${c.usos_max == null ? "" : `/${c.usos_max}`}`}
               {c.validade ? ` · até ${new Date(c.validade).toLocaleDateString("pt-BR")}` : ""}
             </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button role="switch" aria-checked={c.mostrar_no_cardapio} aria-label={`Mostrar cupom ${c.codigo} no cardápio`}
+              onClick={() => void alternarMostrar(c)}
+              className={`flex h-7 w-12 shrink-0 items-center rounded-full p-1 ${c.mostrar_no_cardapio ? "justify-end bg-emerald-600" : "justify-start bg-neutral-300 dark:bg-neutral-700"}`}>
+              <span className="size-5 rounded-full bg-white shadow" />
+            </button>
+            <span className="text-xs text-neutral-600 dark:text-neutral-400">Mostrar no cardápio</span>
           </div>
           <button onClick={() => void alternar(c)} className={`rounded-full px-3 py-1 text-xs font-semibold ${c.ativo ? "bg-emerald-100 text-emerald-800" : "bg-neutral-200 text-neutral-700"}`}>
             {c.ativo ? "Ativo" : "Pausado"}

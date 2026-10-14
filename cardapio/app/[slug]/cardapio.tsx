@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
-  Bike, Clock, CreditCard, Info, List, MapPin, MessageCircle, RotateCcw, Search, ShoppingBag, Star, Store, Timer, X,
+  Bike, Clock, Copy, CreditCard, Info, List, MapPin, MessageCircle, RotateCcw, Search, ShoppingBag, Star, Store, Timer, X,
 } from "lucide-react";
 import { RodapeLegal } from "@/components/links-legais";
 import { Modal } from "@/components/modal";
@@ -16,20 +16,47 @@ import {
 import { Checkout } from "./checkout";
 import { ItemSheet } from "./item-sheet";
 
-type Props = { empresa: EmpresaPublica; categorias: CategoriaPublica[]; itens: ItemPublico[]; bairros: BairroPublico[] };
+export type CupomCardapio = { codigo: string; tipo: "percentual" | "valor" | "frete_gratis"; valor: number | string; pedido_minimo: number | string };
+type Props = {
+  empresa: EmpresaPublica; categorias: CategoriaPublica[]; itens: ItemPublico[]; bairros: BairroPublico[];
+  cupons: CupomCardapio[];
+};
 export type UltimoPedido = { em: string; linhas: LinhaCarrinho[] };
 
 const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const irPara = (id: string) => document.getElementById(`c-${id}`)?.scrollIntoView({ behavior: "smooth" });
+const avisosFechados = new Set<string>();
+const ouvintesAviso = new Set<() => void>();
+const assinarAvisos = (ouvinte: () => void) => (ouvintesAviso.add(ouvinte), () => ouvintesAviso.delete(ouvinte));
+const snapshotAvisoServidor = () => false;
 
-export function Cardapio({ empresa, categorias, itens, bairros }: Props) {
+function snapshotAviso(key: string) {
+  if (avisosFechados.has(key)) return true;
+  try { return sessionStorage.getItem(key) === "fechado"; }
+  catch { return false; }
+}
+
+export function Cardapio({ empresa, categorias, itens, bairros, cupons }: Props) {
   const [salvo, setLinhas] = useArmazenado<LinhaCarrinho[]>(`carrinho:${empresa.slug}`, []);
   const [ultimo] = useArmazenado<UltimoPedido | null>(`ultimo:${empresa.slug}`, null);
+  const [cupomInicial, setCupomInicial] = useState<string | null>(null);
+  const [indiceCupom, setIndiceCupom] = useState(0);
+  const [retornoCopia, setRetornoCopia] = useState("");
+  const [codigoCopiado, setCodigoCopiado] = useState("");
   const [aberto, setAberto] = useState(false);
   const [itemAberto, setItemAberto] = useState<ItemPublico | null>(null);
   const [info, setInfo] = useState(false);
   const [busca, setBusca] = useState<string | null>(null);
   const podePedir = empresa.aberto && (empresa.aceita_entrega || empresa.aceita_retirada);
+  const chaveAviso = `cupom-banner:${empresa.slug}`;
+  const lerAvisoFechado = useCallback(() => snapshotAviso(chaveAviso), [chaveAviso]);
+  const avisoFechadoSessao = useSyncExternalStore(assinarAvisos, lerAvisoFechado, snapshotAvisoServidor);
+
+  useEffect(() => {
+    if (avisoFechadoSessao || cupons.length < 2) return;
+    const timer = window.setInterval(() => setIndiceCupom((atual) => (atual + 1) % cupons.length), 4500);
+    return () => window.clearInterval(timer);
+  }, [avisoFechadoSessao, cupons.length]);
 
   // Ignora formato antigo e itens que saíram do cardápio ou esgotaram desde que foram pro carrinho.
   const porId = new Map(itens.filter((i) => i.disponivel).map((i) => [i.id, i]));
@@ -61,10 +88,40 @@ export function Cardapio({ empresa, categorias, itens, bairros }: Props) {
   return (
     <div style={varsCor(empresa.cor_primaria)} className="min-h-dvh flex-1 bg-neutral-50 text-neutral-900">
       {aberto && qtd > 0 ? (
-        <Checkout empresa={empresa} bairros={bairros} linhas={linhas} porId={porId} subtotal={subtotal}
+        <Checkout empresa={empresa} bairros={bairros} linhas={linhas} porId={porId} subtotal={subtotal} cupomInicial={cupomInicial}
           setLinhas={setLinhas} fechar={() => setAberto(false)} />
       ) : (
         <main className="mx-auto w-full max-w-5xl bg-white pb-28 sm:my-4 sm:rounded-3xl sm:shadow-sm">
+          {cupons.length > 0 && !avisoFechadoSessao && (
+            <div className="flex items-center gap-2 bg-(--cor) px-3 py-2 text-(--cor-texto) sm:rounded-t-3xl sm:px-5">
+              <span aria-hidden="true" className="shrink-0 text-lg">🎟️</span>
+              <p key={cupons[indiceCupom % cupons.length].codigo}
+                className="min-w-0 flex-1 text-xs font-medium leading-5 animate-surgir sm:text-sm">
+                Hoje tem cupom de desconto! Use{" "}
+                <strong className="font-mono font-extrabold">{cupons[indiceCupom % cupons.length].codigo}</strong>
+                {" "}e ganhe{" "}
+                <strong>{textoBeneficio(cupons[indiceCupom % cupons.length])}</strong>
+                {Number(cupons[indiceCupom % cupons.length].pedido_minimo) > 0 &&
+                  ` em pedidos acima de ${brl(Number(cupons[indiceCupom % cupons.length].pedido_minimo))}`}
+              </p>
+              <button type="button" aria-label="Copiar código"
+                onClick={() => void copiarCupom(cupons[indiceCupom % cupons.length].codigo)}
+                className="flex h-9 shrink-0 items-center gap-1 rounded-lg bg-white/20 px-2 text-xs font-bold hover:bg-white/30 sm:px-3">
+                <Copy className="size-3.5" />
+                <span>{codigoCopiado === cupons[indiceCupom % cupons.length].codigo ? "Copiado" : "Copiar"}</span>
+              </button>
+              <button type="button" onClick={() => {
+                avisosFechados.add(chaveAviso);
+                try { sessionStorage.setItem(chaveAviso, "fechado"); }
+                catch { setRetornoCopia("O aviso foi fechado nesta página."); }
+                ouvintesAviso.forEach((ouvinte) => ouvinte());
+              }} aria-label="Fechar aviso de cupom"
+                className="flex size-8 shrink-0 items-center justify-center rounded-full hover:bg-white/20">
+                <X className="size-4" />
+              </button>
+            </div>
+          )}
+          {retornoCopia && <p role="status" className="sr-only">{retornoCopia}</p>}
           <Cabecalho empresa={empresa} abrirInfo={() => setInfo(true)} />
           <BarraCategorias categorias={comItens} busca={busca} setBusca={setBusca} />
 
@@ -135,6 +192,28 @@ export function Cardapio({ empresa, categorias, itens, bairros }: Props) {
       {info && <InfoModal empresa={empresa} bairros={bairros} fechar={() => setInfo(false)} />}
     </div>
   );
+
+  async function copiarCupom(codigo: string) {
+    setCupomInicial(codigo);
+    setCodigoCopiado("");
+    if (!navigator.clipboard?.writeText) {
+      setRetornoCopia("Não foi possível copiar o código. Ele será preenchido no checkout.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(codigo);
+      setCodigoCopiado(codigo);
+      setRetornoCopia(`Código ${codigo} copiado e será preenchido no checkout.`);
+    } catch {
+      setRetornoCopia(`Não foi possível copiar o código ${codigo}. Ele será preenchido no checkout.`);
+    }
+  }
+}
+
+function textoBeneficio(cupom: CupomCardapio) {
+  if (cupom.tipo === "frete_gratis") return "frete grátis (só entrega)";
+  if (cupom.tipo === "percentual") return `${Number(cupom.valor)}% de desconto`;
+  return `${brl(Number(cupom.valor))} de desconto`;
 }
 
 function Cabecalho({ empresa, abrirInfo }: { empresa: EmpresaPublica; abrirInfo: () => void }) {
