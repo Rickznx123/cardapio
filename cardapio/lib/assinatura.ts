@@ -137,10 +137,16 @@ export async function reconciliar(admin: SupabaseClient) {
     .not("mp_preapproval_id", "is", null);
   if (erroAss) throw new Error(`reconciliar assinaturas: ${erroAss.message}`);
   for (const { mp_preapproval_id: id } of assinaturas ?? []) {
-    await tentar(`assinatura ${id}`, async () => {
-      for (const a of await buscarCobrancasAssinatura(id)) await processarAutorizado(admin, a);
-      await processarRecurso(admin, "subscription_preapproval", id);
-    });
+    await tentar(`assinatura ${id}`, () => sincronizarCartao(admin, id));
   }
   return erros;
+}
+
+// Assinatura no cartão direto da API: registra as cobranças e o cancelamento. Devolve o status do preapproval
+// (pending = checkout não concluído; authorized = cartão aceito, cobrança pode demorar).
+export async function sincronizarCartao(admin: SupabaseClient, preapprovalId: string) {
+  for (const a of await buscarCobrancasAssinatura(preapprovalId)) await processarAutorizado(admin, a);
+  const p = await buscarPreapproval(preapprovalId);
+  if (p.status === "cancelled") await marcarCancelada(admin, p.id);
+  return p.status;
 }

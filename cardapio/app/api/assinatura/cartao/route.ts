@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
-import { donoLogado } from "@/lib/assinatura";
+import { donoLogado, sincronizarCartao } from "@/lib/assinatura";
 import { cancelarAssinatura, criarAssinaturaCartao } from "@/lib/mercadopago";
 import { cartaoAtivo } from "@/lib/planos";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -23,5 +23,24 @@ export async function POST(request: Request) {
     console.error("assinatura cartão:", e);
     Sentry.captureException(e, { tags: { rota: "assinatura-cartao" } });
     return erro("Não foi possível abrir o pagamento no Mercado Pago. Tente de novo.", 502);
+  }
+}
+
+// Situação da assinatura no cartão consultada no MP (a tela chama ao voltar do checkout; não depende do webhook).
+export async function GET() {
+  const dono = await donoLogado();
+  if (!dono) return erro("Sem permissão", 403);
+  const id = dono.empresa.mp_preapproval_id;
+  if (!id) return NextResponse.json({ status: null, ativo: false });
+  try {
+    const admin = createAdminClient();
+    const status = await sincronizarCartao(admin, id);
+    const { data: e } = await admin.from("empresas")
+      .select("plano_status, forma_assinatura, mp_preapproval_id").eq("id", dono.empresa.id).single();
+    return NextResponse.json({ status, ativo: !!e && cartaoAtivo(e) });
+  } catch (e) {
+    console.error("assinatura cartão status:", e);
+    Sentry.captureException(e, { tags: { rota: "assinatura-cartao-status" } });
+    return erro("Não foi possível consultar o Mercado Pago.", 502);
   }
 }
