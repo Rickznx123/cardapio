@@ -143,7 +143,7 @@ export function Assinatura({ empresa }: { empresa: Empresa }) {
       });
   }, [empresa.id]);
 
-  // Voltou do checkout (ou o webhook atrasou): consulta o MP. Cartão autorizado sem cobrança ainda = confere a cada 15s.
+  // Voltou do checkout (ou o webhook atrasou): consulta o MP e confere a cada 15s enquanto não houver pagamento aprovado.
   const [statusCartao, setStatusCartao] = useState<string | null>(null);
   const conferirCartao = !!empresa.mp_preapproval_id && !cartaoAtivo(empresa);
   useEffect(() => {
@@ -159,7 +159,7 @@ export function Assinatura({ empresa }: { empresa: Empresa }) {
         return;
       }
       setStatusCartao(r.status);
-      if (r.status === "authorized") timer = window.setTimeout(conferir, 15_000);
+      if (r.status === "authorized" || r.status === "pending") timer = window.setTimeout(conferir, 15_000);
     }
     void conferir();
     return () => { ativo = false; window.clearTimeout(timer); };
@@ -204,20 +204,23 @@ export function Assinatura({ empresa }: { empresa: Empresa }) {
         </div>
         {empresa.cortesia ? (
           <p className="text-sm text-neutral-600 dark:text-neutral-400">Sua loja tem acesso liberado pela plataforma, sem cobrança.</p>
-        ) : recorrente || statusCartao === "authorized" ? (
+        ) : (
           <div className="space-y-3">
-            {!recorrente && (
+            {/* Preapproval criado e nenhum pagamento aprovado ainda (não depende da consulta ao MP responder). */}
+            {conferirCartao && statusCartao !== "cancelled" && (
               <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">
-                Cartão autorizado no Mercado Pago. Aguardando a primeira cobrança: assim que ela for aprovada, sua assinatura
-                aparece aqui como ativa (pode levar alguns minutos).
+                Assinatura criada, aguardando confirmação do primeiro pagamento.
+                {statusCartao === "pending" && " Se você não concluiu o pagamento no Mercado Pago, assine de novo abaixo."}
               </p>
             )}
-            <button type="button" onClick={cancelar} disabled={cancelando} className={`${botaoSec} text-red-700 dark:text-red-400`}>
-              {cancelando ? "Cancelando…" : "Cancelar assinatura"}
-            </button>
+            {recorrente || statusCartao === "authorized" ? (
+              <button type="button" onClick={cancelar} disabled={cancelando} className={`${botaoSec} text-red-700 dark:text-red-400`}>
+                {cancelando ? "Cancelando…" : "Cancelar assinatura"}
+              </button>
+            ) : (
+              <PagarAssinatura empresa={empresa} />
+            )}
           </div>
-        ) : (
-          <PagarAssinatura empresa={empresa} />
         )}
       </section>
 

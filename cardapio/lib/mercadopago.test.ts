@@ -1,7 +1,7 @@
 // node --test lib/mercadopago.test.ts
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { statusPagamento, verificarAssinaturaMercadoPago as ok } from "./mercadopago.ts";
+import { statusPagamento, todasAsPaginas, verificarAssinaturaMercadoPago as ok } from "./mercadopago.ts";
 
 // HMACs de referência calculados com openssl (fora deste código).
 const SECRET = "segredo-de-teste";
@@ -40,4 +40,18 @@ test("status do Mercado Pago → status do pagamento", () => {
   assert.equal(statusPagamento("charged_back"), "estornado");
   assert.equal(statusPagamento("in_process"), "pendente");
   assert.equal(statusPagamento(undefined), "pendente");
+});
+
+test("busca paginada: segue o offset até paging.total, para em página vazia e no teto", async () => {
+  const dados = Array.from({ length: 7 }, (_, i) => i);
+  const offsets: number[] = [];
+  const pagina = (total: number) => async (offset: number) => {
+    offsets.push(offset);
+    return { results: dados.slice(offset, offset + 3), paging: { total } };
+  };
+  assert.deepEqual(await todasAsPaginas(pagina(7)), dados);
+  assert.deepEqual(offsets, [0, 3, 6]);
+  assert.deepEqual(await todasAsPaginas(async () => ({ results: [1, 2] })), [1, 2]); // sem paging: uma página
+  assert.deepEqual(await todasAsPaginas(pagina(99)), dados); // total mentiroso: para na página vazia
+  assert.equal((await todasAsPaginas(async () => ({ results: [1], paging: { total: 1e9 } }), 5)).length, 5);
 });

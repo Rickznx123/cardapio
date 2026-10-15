@@ -137,16 +137,26 @@ export async function reconciliar(admin: SupabaseClient) {
     .not("mp_preapproval_id", "is", null);
   if (erroAss) throw new Error(`reconciliar assinaturas: ${erroAss.message}`);
   for (const { mp_preapproval_id: id } of assinaturas ?? []) {
-    await tentar(`assinatura ${id}`, () => sincronizarCartao(admin, id));
+    await tentar(`assinatura ${id}`, async () => {
+      if ((await sincronizarCartao(admin, id)).erroCobrancas) erros.push(`cobranças da assinatura ${id}`);
+    });
   }
   return erros;
 }
 
 // Assinatura no cartão direto da API: registra as cobranças e o cancelamento. Devolve o status do preapproval
 // (pending = checkout não concluído; authorized = cartão aceito, cobrança pode demorar).
+// Falha na busca de cobranças vai para o Sentry e não impede de ler o status.
 export async function sincronizarCartao(admin: SupabaseClient, preapprovalId: string) {
-  for (const a of await buscarCobrancasAssinatura(preapprovalId)) await processarAutorizado(admin, a);
+  let erroCobrancas = false;
+  try {
+    for (const a of await buscarCobrancasAssinatura(preapprovalId)) await processarAutorizado(admin, a);
+  } catch (e) {
+    erroCobrancas = true;
+    console.error("assinatura cobranças:", e);
+    Sentry.captureException(e, { tags: { rota: "assinatura-cobrancas" }, extra: { preapprovalId } });
+  }
   const p = await buscarPreapproval(preapprovalId);
   if (p.status === "cancelled") await marcarCancelada(admin, p.id);
-  return p.status;
+  return { status: p.status, erroCobrancas };
 }

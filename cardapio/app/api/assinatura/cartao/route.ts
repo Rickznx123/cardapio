@@ -34,7 +34,7 @@ export async function GET() {
   if (!id) return NextResponse.json({ status: null, ativo: false });
   try {
     const admin = createAdminClient();
-    const status = await sincronizarCartao(admin, id);
+    const { status } = await sincronizarCartao(admin, id);
     const { data: e } = await admin.from("empresas")
       .select("plano_status, forma_assinatura, mp_preapproval_id").eq("id", dono.empresa.id).single();
     return NextResponse.json({ status, ativo: !!e && cartaoAtivo(e) });

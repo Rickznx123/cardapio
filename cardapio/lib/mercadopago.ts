@@ -62,9 +62,22 @@ export type AuthorizedPayment = {
 export const buscarPayment = (id: string) => mp<Payment>(`/v1/payments/${encodeURIComponent(id)}`);
 export const buscarPreapproval = (id: string) => mp<Preapproval>(`/preapproval/${encodeURIComponent(id)}`);
 export const buscarAuthorizedPayment = (id: string) => mp<AuthorizedPayment>(`/authorized_payments/${encodeURIComponent(id)}`);
-// shortcut: só a primeira página (até 100 cobranças por assinatura); paginar se alguma assinatura passar disso.
-export const buscarCobrancasAssinatura = async (preapprovalId: string) =>
-  (await mp<{ results?: AuthorizedPayment[] }>(`/authorized_payments/search?preapproval_id=${encodeURIComponent(preapprovalId)}&limit=100`)).results ?? [];
+type Pagina<T> = { results?: T[]; paging?: { total?: number } };
+
+// Junta as páginas de uma busca do MP por offset até paging.total. Teto de páginas contra loop se a API mentir o total.
+export async function todasAsPaginas<T>(buscar: (offset: number) => Promise<Pagina<T>>, maxPaginas = 20) {
+  const todos: T[] = [];
+  for (let i = 0; i < maxPaginas; i++) {
+    const { results = [], paging } = await buscar(todos.length);
+    todos.push(...results);
+    if (!results.length || todos.length >= (paging?.total ?? 0)) break;
+  }
+  return todos;
+}
+
+// Sem `limit`: a API recusa valores fora do aceito (400 "Invalid value for limit") e o padrão já pagina.
+export const buscarCobrancasAssinatura = (preapprovalId: string) => todasAsPaginas<AuthorizedPayment>((offset) =>
+  mp(`/authorized_payments/search?preapproval_id=${encodeURIComponent(preapprovalId)}${offset ? `&offset=${offset}` : ""}`));
 
 // Assinatura mensal sem plano, pendente: o dono informa o cartão no checkout do MP (init_point).
 export async function criarAssinaturaCartao(
