@@ -36,6 +36,8 @@ test("status do Mercado Pago → status do pagamento", () => {
   assert.equal(statusPagamento("approved"), "aprovado");
   assert.equal(statusPagamento("rejected"), "recusado");
   assert.equal(statusPagamento("cancelled"), "cancelado");
+  assert.equal(statusPagamento("refunded"), "estornado");
+  assert.equal(statusPagamento("charged_back"), "estornado");
   assert.equal(statusPagamento("in_process"), "pendente");
   assert.equal(statusPagamento(undefined), "pendente");
 });

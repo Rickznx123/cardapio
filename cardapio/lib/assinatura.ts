@@ -4,7 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { enviarEmail, type TipoEmail } from "@/lib/email";
 import { FUSO } from "@/lib/horarios";
 import {
-  buscarAuthorizedPayment, buscarPayment, buscarPreapproval, type FormaAssinatura, type StatusPagamento, statusPagamento,
+  type AuthorizedPayment, buscarAuthorizedPayment, buscarCobrancasAssinatura, buscarPayment, buscarPreapproval, type FormaAssinatura,
+  type StatusPagamento, statusPagamento,
 } from "@/lib/mercadopago";
 import type { PlanoStatus } from "@/lib/planos";
 import { createClient } from "@/lib/supabase/server";
@@ -81,6 +82,18 @@ export async function marcarCancelada(admin: SupabaseClient, preapprovalId: stri
     if (e2) throw new Error(`cancelar assinatura: ${e2.message}`);
   }
 }
+// Cobrança do cartão. Empresa: pelo pagamento já gravado (vale depois de cancelar), pela assinatura ou pelo external_reference.
+async function processarAutorizado(admin: SupabaseClient, a: AuthorizedPayment) {
+  const mpId = String(a.id);
+  const { data: salvo } = await admin.from("pagamentos").select("empresa_id").eq("mp_id", mpId).maybeSingle();
+  const { data: e } = !salvo && a.preapproval_id
+    ? await admin.from("empresas").select("id").eq("mp_preapproval_id", a.preapproval_id).maybeSingle()
+    : { data: null };
+  const empresaId = salvo?.empresa_id ?? e?.id ?? a.external_reference;
+  if (!empresaId) throw new Error(`authorized_payment ${mpId} sem empresa`);
+  const status = statusPagamento(a.payment?.status ?? (a.status === "cancelled" ? "cancelled" : undefined));
+  await registrar(admin, empresaId, "cartao", mpId, status, a.transaction_amount, a);
+}
 
 // Busca o recurso na API do MP (nunca confia no corpo da notificação) e aplica as regras. Idempotente.
 export async function processarRecurso(admin: SupabaseClient, tipo: string, id: string) {
@@ -91,16 +104,43 @@ export async function processarRecurso(admin: SupabaseClient, tipo: string, id: 
     if (!p.external_reference?.startsWith("pix:")) return;
     await registrar(admin, p.external_reference.slice(4), "pix", String(p.id), statusPagamento(p.status), p.transaction_amount, p);
   } else if (tipo === "subscription_authorized_payment") {
-    const a = await buscarAuthorizedPayment(id);
-    const { data: e } = a.preapproval_id
-      ? await admin.from("empresas").select("id").eq("mp_preapproval_id", a.preapproval_id).maybeSingle()
-      : { data: null };
-    const empresaId = e?.id ?? a.external_reference;
-    if (!empresaId) throw new Error(`authorized_payment ${id} sem empresa`);
-    const status = statusPagamento(a.payment?.status ?? (a.status === "cancelled" ? "cancelled" : undefined));
-    await registrar(admin, empresaId, "cartao", String(a.id), status, a.transaction_amount, a);
+    await processarAutorizado(admin, await buscarAuthorizedPayment(id));
   } else if (tipo === "subscription_preapproval") {
     const p = await buscarPreapproval(id);
     if (p.status === "cancelled") await marcarCancelada(admin, p.id);
   }
+}
+
+// Reconciliação (rotina diária): reconsulta no MP o que pode ter mudado sem webhook (pendentes, estornos,
+// cobranças e cancelamentos de assinatura). Erro num item não para os outros. Devolve as falhas.
+export async function reconciliar(admin: SupabaseClient) {
+  const erros: string[] = [];
+  const tentar = async (rotulo: string, f: () => Promise<unknown>) => {
+    try {
+      await f();
+    } catch (e) {
+      console.error("assinatura reconciliar:", rotulo, e);
+      erros.push(rotulo);
+      Sentry.captureException(e, { tags: { rota: "assinatura-reconciliar" }, extra: { rotulo } });
+    }
+  };
+
+  const { data: recentes, error } = await admin.from("pagamentos").select("mp_id, tipo")
+    .in("status", ["pendente", "aprovado"]).gte("created_at", new Date(Date.now() - 35 * 86_400_000).toISOString());
+  if (error) throw new Error(`reconciliar pagamentos: ${error.message}`);
+  for (const p of recentes ?? []) {
+    await tentar(`pagamento ${p.mp_id}`, () =>
+      processarRecurso(admin, p.tipo === "pix" ? "payment" : "subscription_authorized_payment", p.mp_id));
+  }
+
+  const { data: assinaturas, error: erroAss } = await admin.from("empresas").select("mp_preapproval_id")
+    .not("mp_preapproval_id", "is", null);
+  if (erroAss) throw new Error(`reconciliar assinaturas: ${erroAss.message}`);
+  for (const { mp_preapproval_id: id } of assinaturas ?? []) {
+    await tentar(`assinatura ${id}`, async () => {
+      for (const a of await buscarCobrancasAssinatura(id)) await processarAutorizado(admin, a);
+      await processarRecurso(admin, "subscription_preapproval", id);
+    });
+  }
+  return erros;
 }

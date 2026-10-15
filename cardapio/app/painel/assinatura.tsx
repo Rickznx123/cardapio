@@ -11,7 +11,7 @@ import { botaoSec, card, supabase } from "./ui";
 type Pix = { id: string; qr_code: string; qr_code_base64: string };
 type Pagamento = { mp_id: string; tipo: "cartao" | "pix"; status: string; valor: number; periodo_fim: string | null; created_at: string };
 
-const STATUS: Record<string, string> = { pendente: "Aguardando", aprovado: "Aprovado", recusado: "Recusado", cancelado: "Cancelado" };
+const STATUS: Record<string, string> = { pendente: "Aguardando", aprovado: "Aprovado", recusado: "Recusado", cancelado: "Cancelado", estornado: "Estornado" };
 const data = (iso: string) => new Date(iso).toLocaleDateString("pt-BR");
 
 async function chamar<T>(url: string, method = "POST"): Promise<T> {

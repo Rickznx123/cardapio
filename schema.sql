@@ -149,7 +149,7 @@ create table pagamentos (
   provedor       text not null default 'mercadopago' check (provedor = 'mercadopago'),
   tipo           forma_assinatura not null,
   mp_id          text not null unique, -- payment (Pix) ou authorized_payment (cartão)
-  status         text not null check (status in ('pendente', 'aprovado', 'recusado', 'cancelado')),
+  status         text not null check (status in ('pendente', 'aprovado', 'recusado', 'cancelado', 'estornado')),
   valor          numeric(10,2) not null check (valor > 0),
   periodo_inicio  timestamptz,
   periodo_fim     timestamptz,
@@ -1151,8 +1151,9 @@ revoke all on function public.superadmin_empresas() from public, anon, authentic
 grant execute on function public.superadmin_empresas() to service_role;
 
 -- ---------- ASSINATURA (Mercado Pago) ----------
--- Grava/atualiza um pagamento do MP e, na primeira vez que ele fica aprovado, estende pago_ate
--- (Pix: +30 dias; cartão: +1 mês) a partir do maior entre pago_ate e agora. Idempotente por mp_id.
+-- Grava/atualiza um pagamento do MP. Aprovado (1ª vez): estende pago_ate (Pix: +30 dias; cartão: +1 mês) a partir do
+-- maior entre pago_ate e agora. Estornado depois de aprovado: tira o mesmo período. Aprovado só muda para estornado,
+-- estornado é final. Idempotente por mp_id.
 create or replace function public.registrar_pagamento_mp(
   p_empresa uuid, p_tipo forma_assinatura, p_mp_id text, p_status text, p_valor numeric, p_raw jsonb
 ) returns jsonb
@@ -1160,6 +1161,7 @@ language plpgsql security definer set search_path = public
 as $$
 declare
   v_antes    text;
+  v_periodo  interval;
   v_inicio   timestamptz;
   v_fim      timestamptz;
   v_primeiro boolean := false;
@@ -1167,9 +1169,8 @@ begin
   -- Trava a empresa: dois webhooks simultâneos do mesmo pagamento não estendem duas vezes.
   select greatest(coalesce(pago_ate, now()), now()) into v_inicio from empresas where id = p_empresa for update;
   if not found then raise exception 'Empresa não encontrada'; end if;
-  select status into v_antes from pagamentos where mp_id = p_mp_id;
-  -- shortcut: aprovado é final (estorno/chargeback não tira dias); tratar se passar a acontecer.
-  if v_antes = 'aprovado' or v_antes = p_status then
+  select status, periodo_fim - periodo_inicio into v_antes, v_periodo from pagamentos where mp_id = p_mp_id;
+  if v_antes = p_status or v_antes = 'estornado' or (v_antes = 'aprovado' and p_status <> 'estornado') then
     return jsonb_build_object('mudou', false, 'primeiro', false);
   end if;
 
@@ -1179,12 +1180,21 @@ begin
     update empresas set pago_ate = v_fim, plano_status = 'ativo', forma_assinatura = p_tipo where id = p_empresa;
   else
     v_inicio := null;
+    if p_status = 'estornado' and v_antes = 'aprovado' and v_periodo is not null then
+      -- Já passou da carência com os dias a menos: vence na hora (sem esperar a rotina).
+      update empresas set pago_ate = pago_ate - v_periodo,
+        plano_status = case when plano_status = 'ativo' and not cortesia and pago_ate - v_periodo + interval '3 days' <= now()
+                            then 'vencido' else plano_status end
+      where id = p_empresa;
+    end if;
   end if;
 
   insert into pagamentos (empresa_id, tipo, mp_id, status, valor, periodo_inicio, periodo_fim, raw)
   values (p_empresa, p_tipo, p_mp_id, p_status, p_valor, v_inicio, v_fim, p_raw)
-  on conflict (mp_id) do update set status = excluded.status, valor = excluded.valor,
-    periodo_inicio = excluded.periodo_inicio, periodo_fim = excluded.periodo_fim, raw = excluded.raw;
+  on conflict (mp_id) do update set status = excluded.status, valor = excluded.valor, raw = excluded.raw,
+    -- Estorno mantém o período original no histórico.
+    periodo_inicio = coalesce(excluded.periodo_inicio, pagamentos.periodo_inicio),
+    periodo_fim = coalesce(excluded.periodo_fim, pagamentos.periodo_fim);
   return jsonb_build_object('mudou', true, 'primeiro', v_primeiro);
 end;
 $$;

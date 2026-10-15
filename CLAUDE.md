@@ -47,6 +47,7 @@ Interface 100% em português (pt-BR), valores em R$.
 - Assinatura (Mercado Pago, `lib/mercadopago.ts` + `lib/assinatura.ts`): cartão = preapproval mensal (`mp_preapproval_id`, cobranças chegam
   como `subscription_authorized_payment`, +1 mês); Pix = payment avulso `external_reference = pix:{empresa_id}` (+30 dias). Tudo passa
   pela RPC `registrar_pagamento_mp` (idempotente por `mp_id`, só service role). Cancelar = `plano_status 'cancelado'`, acesso até `pago_ate`.
+  Estorno/chargeback (`estornado`) de pagamento aprovado tira os dias que ele deu.
   E-mails (Resend) idempotentes por chave em `emails_enviados`. Env server only: `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, `RESEND_API_KEY`.
 - Empresa inativa: cardápio mostra "indisponível" (checagem server com service role) e o painel bloqueia com aviso.
 - Status `saiu` (saiu para entrega) só em pedidos de entrega, entre `pronto` e `entregue`.
@@ -75,9 +76,9 @@ Interface 100% em português (pt-BR), valores em R$.
 | `POST /api/whatsapp/teste` | dono | envia mensagem de teste |
 | `POST /api/whatsapp/webhook?secret=` | Evolution | mensagens recebidas → chatbot (menu 1–4, ausência, IA OpenAI) |
 | `POST /api/whatsapp/pedido?secret=` | Supabase DB Webhook | insert/update em `pedidos` → aviso de status ao cliente (só web/balcão) |
-| `POST /api/mercadopago/webhook` | Mercado Pago | valida x-signature (HMAC), busca o recurso na API e processa no `after()` |
+| `POST /api/mercadopago/webhook` | Mercado Pago | valida x-signature (HMAC), busca o recurso na API e processa antes de responder (erro = 500, o MP reenvia) |
 | `/api/assinatura/{cartao,pix,cancelar}`, `GET /api/assinatura/pix/[id]/status` | dono | assinar no cartão (link do checkout), gerar Pix 30 dias, cancelar, status do Pix (consulta o MP se pendente) |
-| `POST /api/assinatura/rotina?secret=` | Supabase pg_cron/pg_net | diário 09:00 Cuiabá (`0 13 * * *` UTC): vence após `pago_ate` + 3 dias, lembretes de Pix e de fim do teste |
+| `POST /api/assinatura/rotina?secret=` | Supabase pg_cron/pg_net | diário 09:00 Cuiabá (`0 13 * * *` UTC): reconcilia com o MP (pendentes/aprovados de 35 dias, cobranças e status das assinaturas), vence após `pago_ate` + 3 dias, lembretes de Pix e de fim do teste |
 | `POST /api/recuperador/processar?secret=` | Supabase pg_cron/pg_net | processa até 3 ofertas por empresa conectada; autentica com `CRON_SECRET` |
 
 ## Login do garçom
@@ -137,3 +138,4 @@ O garçom escolhe o nome e digita o PIN; `/api/garcom/login` busca o e-mail com 
 - `019_mercado_pago_assinatura.sql`: `pago_ate`/`forma_assinatura`/`mp_preapproval_id`/`cortesia` em `empresas` (quem era `ativo` vira cortesia);
   `pagamentos`, `emails_enviados`, `registrar_pagamento_mp`; `empresa_liberada` com cortesia e carência; `superadmin_empresas` devolve assinatura.
   Agendar `POST /api/assinatura/rotina?secret=CRON_SECRET` às `0 13 * * *` (SQL no fim da migration).
+- `020_assinatura_estorno.sql`: status `estornado` em `pagamentos`; `registrar_pagamento_mp` devolve os dias no estorno.

@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { PRECO_MENSAL } from "./planos.ts";
 
 export type FormaAssinatura = "cartao" | "pix";
-export type StatusPagamento = "pendente" | "aprovado" | "recusado" | "cancelado";
+export type StatusPagamento = "pendente" | "aprovado" | "recusado" | "cancelado" | "estornado";
 type EmpresaMP = { id: string; nome: string };
 
 // Padrão oficial: manifest "id:{data.id};request-id:{x-request-id};ts:{ts};" assinado com HMAC-SHA256 (hex) = v1.
@@ -27,7 +27,8 @@ export function verificarAssinaturaMercadoPago(
 export function statusPagamento(mp: string | undefined): StatusPagamento {
   if (mp === "approved") return "aprovado";
   if (mp === "rejected") return "recusado";
-  if (mp === "cancelled" || mp === "refunded" || mp === "charged_back") return "cancelado";
+  if (mp === "cancelled") return "cancelado";
+  if (mp === "refunded" || mp === "charged_back") return "estornado";
   return "pendente";
 }
 
@@ -61,6 +62,9 @@ export type AuthorizedPayment = {
 export const buscarPayment = (id: string) => mp<Payment>(`/v1/payments/${encodeURIComponent(id)}`);
 export const buscarPreapproval = (id: string) => mp<Preapproval>(`/preapproval/${encodeURIComponent(id)}`);
 export const buscarAuthorizedPayment = (id: string) => mp<AuthorizedPayment>(`/authorized_payments/${encodeURIComponent(id)}`);
+// shortcut: só a primeira página (até 100 cobranças por assinatura); paginar se alguma assinatura passar disso.
+export const buscarCobrancasAssinatura = async (preapprovalId: string) =>
+  (await mp<{ results?: AuthorizedPayment[] }>(`/authorized_payments/search?preapproval_id=${encodeURIComponent(preapprovalId)}&limit=100`)).results ?? [];
 
 // Assinatura mensal sem plano, pendente: o dono informa o cartão no checkout do MP (init_point).
 export async function criarAssinaturaCartao(
