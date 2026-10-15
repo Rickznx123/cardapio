@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test lib/whatsapp/decidir.test.ts lib/horarios.test.ts lib/status-loja.test.ts lib/planos.test.ts lib/recuperador.test.ts lib/linhas.test.ts lib/cupom.test.ts sentry.comum.test.ts"
+    "test": "node --test lib/whatsapp/decidir.test.ts lib/horarios.test.ts lib/status-loja.test.ts lib/planos.test.ts lib/mercadopago.test.ts lib/recuperador.test.ts lib/linhas.test.ts lib/cupom.test.ts sentry.comum.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

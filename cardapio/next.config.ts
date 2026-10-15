@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
     return [
       { source: "/balcao/configurar", destination: "/painel?secao=impressao", permanent: false },
       { source: "/painel/impressao", destination: "/painel?secao=impressao", permanent: false },
+      { source: "/painel/assinatura", destination: "/painel?secao=assinatura", permanent: false }, // back_url do Mercado Pago
       { source: "/balcao/:path*", destination: "/painel", permanent: false },
       { source: "/admin/:path*", destination: "/painel", permanent: false },
     ];

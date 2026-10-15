@@ -2,22 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, CircleCheck, CircleDashed, CreditCard, Sparkles } from "lucide-react";
+import { CircleCheck, CircleDashed, Sparkles } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { temHorarios } from "@/lib/horarios";
 import { PRODUTO } from "@/lib/marca";
 import { CONFIGURACAO_INCLUSA, INCLUI, PRECO_MENSAL } from "@/lib/planos";
 import { brl } from "@/lib/tipos";
+import { PagarAssinatura } from "./assinatura";
 import type { Empresa } from "./configuracoes";
 import { supabase } from "./ui";
-
-function BotaoPagamento({ texto, secundario = false }: { texto: string; secundario?: boolean }) {
-  return (
-    <button type="button" className={`flex h-12 w-full items-center justify-center gap-2 rounded-xl px-5 font-semibold ${secundario ? "border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}>
-      <CreditCard className="size-5" /> {texto}
-    </button>
-  );
-}
 
 function Preco() {
   return (
@@ -39,7 +32,6 @@ export function FaixaTrial({ dias, assinar }: { dias: number; assinar: () => voi
   );
 }
 
-// Cobrança manual por enquanto: o botão abre o WhatsApp de vendas com a mensagem pronta.
 export function Assinar({ empresa, fechar }: { empresa: Empresa; fechar: () => void }) {
   return (
     <Modal titulo={`Assinar o ${PRODUTO}`} fechar={fechar}>
@@ -49,13 +41,7 @@ export function Assinar({ empresa, fechar }: { empresa: Empresa; fechar: () => v
           {INCLUI.map((i) => <li key={i} className="flex gap-2"><CircleCheck className="size-4 shrink-0 text-emerald-600" /> {i}</li>)}
         </ul>
         <p className="rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{CONFIGURACAO_INCLUSA}.</p>
-        <div className="space-y-2">
-          <BotaoPagamento texto="Assinar no cartão" />
-          <BotaoPagamento texto="Pagar 30 dias no Pix" secundario />
-          <div className="flex items-center justify-center gap-2 text-xs text-neutral-500">
-            <ArrowRight className="size-3.5" /> Credenciais de teste do Mercado Pago
-          </div>
-        </div>
+        <PagarAssinatura empresa={empresa} />
       </div>
     </Modal>
   );
@@ -65,16 +51,13 @@ export function TesteEncerrado({ empresa, sair }: { empresa: Empresa; sair: () =
   return (
     <main className="flex flex-1 flex-col items-center justify-center bg-neutral-50 p-6 dark:bg-neutral-950">
       <div className="w-full max-w-sm space-y-4 rounded-2xl border border-neutral-200 bg-white p-6 text-center dark:border-neutral-800 dark:bg-neutral-900">
-        <h1 className="text-xl font-bold">Seu teste grátis terminou</h1>
+        <h1 className="text-xl font-bold">{empresa.plano_status === "trial" ? "Seu teste grátis terminou" : "Sua assinatura venceu"}</h1>
         <p className="text-neutral-600 dark:text-neutral-400">
-          O cardápio de <b>{empresa.nome}</b> está indisponível para os clientes. Assine para voltar a receber pedidos;
+          O cardápio de <b>{empresa.nome}</b> está indisponível para os clientes. Pague para voltar a receber pedidos;
           tudo o que você configurou continua salvo.
         </p>
         <Preco />
-        <div className="space-y-2">
-          <BotaoPagamento texto="Assinar no cartão" />
-          <BotaoPagamento texto="Pagar 30 dias no Pix" secundario />
-        </div>
+        <PagarAssinatura empresa={empresa} />
         <button onClick={sair} className="text-sm text-neutral-500 underline">Sair</button>
       </div>
     </main>

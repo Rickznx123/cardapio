@@ -1,4 +1,5 @@
 // Plano único e situação do teste grátis. Sem imports com "@/": roda no `node --test`.
+import { FUSO } from "./horarios.ts";
 
 export const PRECO_MENSAL = 149.9;
 // Sem taxa de setup: a implantação vem no plano.
@@ -34,4 +35,29 @@ export function situacaoPlano(
     diasRestantes: trial ? Math.max(0, Math.ceil(restaMs / 86_400_000)) : null,
     emCarencia,
   };
+}
+
+// Assinatura no cartão em vigor: não oferece outro cartão nem Pix por cima.
+export const cartaoAtivo = (e: { mp_preapproval_id: string | null; forma_assinatura: string | null; plano_status: PlanoStatus }) =>
+  !!e.mp_preapproval_id && e.forma_assinatura === "cartao" && e.plano_status === "ativo";
+
+export type AvisoRotina = "pix_3d" | "pix_hoje" | "trial_3d" | "trial_hoje";
+const diaLocal = (ms: number) => new Intl.DateTimeFormat("en-CA", { timeZone: FUSO }).format(ms); // AAAA-MM-DD
+
+// Lembrete do dia (rotina das 09:00): Pix ou teste que vence em 3 dias ou hoje, contando dias de Cuiabá.
+// A chave leva a data de vencimento: um aviso por período, mesmo que a rotina rode mais de uma vez.
+export function avisoDoDia(
+  e: { plano_status: PlanoStatus; forma_assinatura: string | null; pago_ate: string | null; trial_ate: string | null; cortesia: boolean },
+  agora: number,
+): { tipo: AvisoRotina; chave: string; vence: string } | null {
+  if (e.cortesia) return null;
+  const [base, vence] = e.plano_status === "trial" ? ["trial", e.trial_ate]
+    : e.plano_status === "ativo" && e.forma_assinatura === "pix" ? ["pix", e.pago_ate] : [null, null];
+  if (!base || !vence) return null;
+  const dia = diaLocal(Date.parse(vence));
+  const faltam = (Date.parse(dia) - Date.parse(diaLocal(agora))) / 86_400_000;
+  const quando = faltam === 3 ? "3d" : faltam === 0 ? "hoje" : null;
+  if (!quando) return null;
+  const tipo = `${base}_${quando}` as AvisoRotina;
+  return { tipo, chave: `${tipo}:${dia}`, vence };
 }

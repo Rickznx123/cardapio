@@ -42,8 +42,12 @@ Interface 100% em português (pt-BR), valores em R$.
   Informativo: não abre/fecha a loja; o bot do WhatsApp responde "ausência" fora do horário.
 - Dia operacional: termina às `empresas.virada_dia` (default 05:00). "Hoje" dos Pedidos, Histórico e Relatórios (`p_virada`) usam isso.
 - Plano: `empresas.plano_status` (trial/ativo/vencido/cancelado) + `trial_ate` (default now + 3 dias). `empresa_liberada(id)` =
-  ativo e (plano ativo ou trial no prazo): usada no cardápio público, bot, login do garçom, `listar_garcons` e no trigger
-  `pedidos_empresa_liberada` (barra qualquer pedido novo). Painel: faixa do trial + "Assinar" (WhatsApp, cobrança manual); vencido = tela de teste encerrado.
+  ativo e (cortesia, plano ativo, trial no prazo ou `pago_ate` + 3 dias de carência): usada no cardápio público, bot, login do garçom, `listar_garcons` e no trigger
+  `pedidos_empresa_liberada` (barra qualquer pedido novo). Painel: faixa do trial + "Assinar"; vencido = tela de bloqueio com os botões de pagamento.
+- Assinatura (Mercado Pago, `lib/mercadopago.ts` + `lib/assinatura.ts`): cartão = preapproval mensal (`mp_preapproval_id`, cobranças chegam
+  como `subscription_authorized_payment`, +1 mês); Pix = payment avulso `external_reference = pix:{empresa_id}` (+30 dias). Tudo passa
+  pela RPC `registrar_pagamento_mp` (idempotente por `mp_id`, só service role). Cancelar = `plano_status 'cancelado'`, acesso até `pago_ate`.
+  E-mails (Resend) idempotentes por chave em `emails_enviados`. Env server only: `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, `RESEND_API_KEY`.
 - Empresa inativa: cardápio mostra "indisponível" (checagem server com service role) e o painel bloqueia com aviso.
 - Status `saiu` (saiu para entrega) só em pedidos de entrega, entre `pronto` e `entregue`.
 - Pagar sem caixa aberto é barrado no banco (trigger `pedidos_caixa`), inclusive via `fechar_comanda`.
@@ -71,6 +75,9 @@ Interface 100% em português (pt-BR), valores em R$.
 | `POST /api/whatsapp/teste` | dono | envia mensagem de teste |
 | `POST /api/whatsapp/webhook?secret=` | Evolution | mensagens recebidas → chatbot (menu 1–4, ausência, IA OpenAI) |
 | `POST /api/whatsapp/pedido?secret=` | Supabase DB Webhook | insert/update em `pedidos` → aviso de status ao cliente (só web/balcão) |
+| `POST /api/mercadopago/webhook` | Mercado Pago | valida x-signature (HMAC), busca o recurso na API e processa no `after()` |
+| `/api/assinatura/{cartao,pix,cancelar}`, `GET /api/assinatura/pix/[id]/status` | dono | assinar no cartão (link do checkout), gerar Pix 30 dias, cancelar, status do Pix (consulta o MP se pendente) |
+| `POST /api/assinatura/rotina?secret=` | Supabase pg_cron/pg_net | diário 09:00 Cuiabá (`0 13 * * *` UTC): vence após `pago_ate` + 3 dias, lembretes de Pix e de fim do teste |
 | `POST /api/recuperador/processar?secret=` | Supabase pg_cron/pg_net | processa até 3 ofertas por empresa conectada; autentica com `CRON_SECRET` |
 
 ## Login do garçom
@@ -127,3 +134,6 @@ O garçom escolhe o nome e digita o PIN; `/api/garcom/login` busca o e-mail com 
 - `012_clientes.sql`: clientes e backfill; cupons e desconto em pedidos/RPCs/relatórios; configuração, envios e métricas do recuperador.
   Ativar `pg_cron` e `pg_net` e agendar `POST /api/recuperador/processar?secret=CRON_SECRET` a cada 10 min; criar `CRON_SECRET` no Vercel.
 - `013_trial_3_dias.sql`: altera o default futuro de `empresas.trial_ate` para 3 dias; não altera empresas existentes.
+- `019_mercado_pago_assinatura.sql`: `pago_ate`/`forma_assinatura`/`mp_preapproval_id`/`cortesia` em `empresas` (quem era `ativo` vira cortesia);
+  `pagamentos`, `emails_enviados`, `registrar_pagamento_mp`; `empresa_liberada` com cortesia e carência; `superadmin_empresas` devolve assinatura.
+  Agendar `POST /api/assinatura/rotina?secret=CRON_SECRET` às `0 13 * * *` (SQL no fim da migration).

@@ -44,11 +44,13 @@ export default function Superadmin() {
     recarregar();
   }
 
-  async function plano(e: Empresa, acao: "estender_trial" | "marcar_ativo") {
+  async function plano(e: Empresa, acao: "estender_trial" | "marcar_ativo" | "cortesia" | "mais_30_dias") {
     if (acao === "marcar_ativo" && !confirm(`Marcar ${e.nome} como assinante (plano ativo)?`)) return;
+    if (acao === "cortesia" && !confirm(`${e.cortesia ? "Tirar" : "Dar"} cortesia para ${e.nome}?`)) return;
     const { ok, j } = await api("PATCH", { empresa_id: e.id, acao });
     if (!ok) return toast.erro(j.erro ?? "Erro");
-    toast.ok(acao === "marcar_ativo" ? "Plano ativo" : "Teste estendido em 7 dias");
+    toast.ok({ marcar_ativo: "Plano ativo", estender_trial: "Teste estendido em 7 dias",
+      cortesia: e.cortesia ? "Cortesia removida" : "Cortesia ativada", mais_30_dias: "+30 dias pagos" }[acao]);
     recarregar();
   }
 
@@ -94,8 +96,10 @@ export default function Superadmin() {
             <span className="flex gap-1.5">
               <button onClick={() => plano(e, "estender_trial")} className={botaoSec}>+7 dias</button>
               <button onClick={() => plano(e, "marcar_ativo")} className={botaoSec}>Marcar ativo</button>
-              <button onClick={() => {}} className={botaoSec}>{e.cortesia ? "Cortesia on" : "Cortesia off"}</button>
-              <button onClick={() => {}} className={botaoSec}>+30 dias</button>
+              <button onClick={() => plano(e, "cortesia")} className={botaoSec} aria-pressed={e.cortesia}>
+                {e.cortesia ? "Cortesia on" : "Cortesia off"}
+              </button>
+              <button onClick={() => plano(e, "mais_30_dias")} className={botaoSec}>+30 dias</button>
             </span>
             <Link href={`/${e.slug}`} target="_blank" aria-label={`Abrir cardápio de ${e.nome}`}
               className="flex size-10 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800">
