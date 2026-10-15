@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  ArrowRight, BarChart3, Bike, Bot, CircleCheck, ClipboardList, MessageCircle, Printer, QrCode, Smartphone, Sparkles, Store, UtensilsCrossed,
+  ArrowRight, BarChart3, Bike, Bot, CircleCheck, ClipboardList, Printer, QrCode, Smartphone, Sparkles, Store, UtensilsCrossed,
 } from "lucide-react";
 import { linkVendas, PRODUTO } from "@/lib/marca";
 import { CONFIGURACAO_INCLUSA, DIAS_TRIAL, INCLUI, PRECO_MENSAL } from "@/lib/planos";
@@ -19,7 +19,6 @@ export const metadata: Metadata = {
 };
 
 const CTA = `Testar grátis por ${DIAS_TRIAL} dias`;
-const botaoPrimario = "inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-rose-600 px-7 text-lg font-semibold text-white shadow-lg shadow-rose-600/20 hover:bg-rose-700";
 const botaoSecundario = "inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-neutral-300 bg-white px-7 text-lg font-semibold hover:bg-neutral-50";
 
 const PASSOS = [
@@ -49,6 +48,28 @@ const FAQ = [
 ] as const;
 
 // Comparação ilustrativa com comissão de apps de delivery.
+// Botão principal: o dono pede para a gente configurar e já assinar (WhatsApp de vendas, mensagem pronta).
+const MENSAGEM_CONFIGURAR = `Olá! Quero que vocês configurem meu cardápio digital e já assinar o ${PRODUTO}. Meu estabelecimento é: `;
+const APOIO = "A gente cadastra seu cardápio, fotos e QR Codes pra você. É só assinar e começar a vender.";
+// Verde escuro: branco sobre o verde oficial (#25D366) fica ilegível (contraste 2:1).
+const botaoWhats = "inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl text-center bg-emerald-700 px-6 py-3 text-lg font-bold text-white shadow-lg shadow-emerald-700/20 hover:bg-emerald-800 sm:w-auto";
+
+function IconeWhatsApp({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z" />
+    </svg>
+  );
+}
+
+function QueroConfigurar({ className = "" }: { className?: string }) {
+  return (
+    <a href={linkVendas(MENSAGEM_CONFIGURAR)} target="_blank" rel="noopener noreferrer" className={`${botaoWhats} ${className}`}>
+      <IconeWhatsApp className="size-6 shrink-0" /> QUERO CONFIGURAR MEU CARDÁPIO
+    </a>
+  );
+}
+
 const PEDIDOS_MES = 300;
 const TICKET = 40;
 const comissao = (p: number) => brl(PEDIDOS_MES * TICKET * p);
@@ -77,13 +98,11 @@ export default function Home() {
             <p className="mt-5 text-lg text-neutral-600 text-pretty">
               Cardápio digital, delivery, mesas e balcão num só lugar. Mensalidade fixa de {brl(PRECO_MENSAL)} e pedidos ilimitados.
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center md:justify-start">
-              <Link href="/cadastro" className={botaoPrimario}>{CTA} <ArrowRight className="size-5" /></Link>
-              <a href={linkVendas()} target="_blank" rel="noopener noreferrer" className={botaoSecundario}>
-                <MessageCircle className="size-5 text-emerald-600" /> Falar no WhatsApp
-              </a>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center md:justify-start">
+              <QueroConfigurar />
+              <Link href="/cadastro" className={`${botaoSecundario} w-full sm:w-auto`}>{CTA} <ArrowRight className="size-5" /></Link>
             </div>
-            <p className="mt-3 text-sm text-neutral-500">Sem cartão de crédito. Pronto em minutos.</p>
+            <p className="mt-3 text-sm text-neutral-600">{APOIO}</p>
           </div>
           <Mockups />
         </section>
@@ -130,7 +149,10 @@ export default function Home() {
               <ul className="mt-6 space-y-2">
                 {INCLUI.map((i) => <li key={i} className="flex gap-2"><CircleCheck className="mt-0.5 size-5 shrink-0 text-emerald-600" /> {i}</li>)}
               </ul>
-              <Link href="/cadastro" className={`${botaoPrimario} mt-8 w-full`}>{CTA}</Link>
+              <QueroConfigurar className="mt-8 sm:w-full" />
+              <p className="mt-3 text-center text-sm">
+                <Link href="/cadastro" className="font-semibold text-rose-700 underline underline-offset-2 hover:text-rose-800">ou teste grátis sozinho</Link>
+              </p>
               <p className="mt-4 flex gap-2 rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-900">
                 <Sparkles className="mt-0.5 size-4 shrink-0 text-emerald-600" /> {CONFIGURACAO_INCLUSA}, sem custo extra.
               </p>
@@ -169,21 +191,25 @@ export default function Home() {
         <section className="px-4 pb-16">
           <div className="mx-auto max-w-5xl rounded-3xl bg-rose-600 px-6 py-12 text-center text-white">
             <h2 className="text-3xl font-bold text-balance">Seu cardápio no ar ainda hoje</h2>
-            <p className="mt-3 text-rose-100">{DIAS_TRIAL} dias grátis com tudo liberado. Sem cartão de crédito.</p>
-            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-              <Link href="/cadastro" className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-white px-7 text-lg font-semibold text-rose-700 hover:bg-rose-50">
+            <p className="mt-3 text-rose-100">{APOIO}</p>
+            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row sm:flex-wrap">
+              <QueroConfigurar />
+              <Link href="/cadastro" className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-white px-7 text-lg font-semibold text-rose-700 hover:bg-rose-50 sm:w-auto">
                 {CTA} <ArrowRight className="size-5" />
               </Link>
-              <a href={linkVendas()} target="_blank" rel="noopener noreferrer"
-                className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl border border-white/40 px-7 text-lg font-semibold hover:bg-white/10">
-                <MessageCircle className="size-5" /> Falar no WhatsApp
-              </a>
             </div>
+            <p className="mt-4 text-sm text-rose-100">{DIAS_TRIAL} dias grátis com tudo liberado. Sem cartão de crédito.</p>
           </div>
         </section>
       </main>
 
-      <footer className="border-t border-neutral-200 p-6 text-center text-sm text-neutral-500">
+      <a href={linkVendas(MENSAGEM_CONFIGURAR)} target="_blank" rel="noopener noreferrer" aria-label="Falar com a gente no WhatsApp"
+        className="fixed right-4 bottom-4 z-50 flex size-14 items-center justify-center rounded-full bg-emerald-600 text-white shadow-xl shadow-emerald-900/30 hover:bg-emerald-700 sm:right-6 sm:bottom-6">
+        <IconeWhatsApp className="size-8" />
+      </a>
+
+      {/* pb extra no celular: o botão flutuante não cobre os links do rodapé. */}
+      <footer className="border-t border-neutral-200 p-6 pb-24 text-center text-sm text-neutral-500 sm:pb-6">
         © {PRODUTO} · <Link href="/termos" className="hover:underline">Termos de uso</Link> ·{" "}
         <Link href="/privacidade" className="hover:underline">Privacidade</Link> · <Link href="/login" className="hover:underline">Entrar</Link>
       </footer>
