@@ -79,8 +79,11 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
   const [filtro, setFiltro] = useState<Filtro>("tudo");
   const [busca, setBusca] = useState("");
   const [versaoMesas, setVersaoMesas] = useState(0);
-  const [somAtivado, setSomAtivado] = useState(false);
-  const [erroSom, setErroSom] = useState(false);
+  // Preferência por aparelho (ligada por padrão); "desbloqueado" = o navegador já deixa tocar (exige um gesto do usuário).
+  const [somLigado, setSomLigado] = useArmazenado("balcao:som", true);
+  const [notificacaoPedida, setNotificacaoPedida] = useArmazenado("balcao:notificacao-pedida", false);
+  const [desbloqueado, setDesbloqueado] = useState(false);
+  const [alertaTitulo, setAlertaTitulo] = useState(false);
   const [novo, setNovo] = useState(false);
   const [detalhe, setDetalhe] = useState<PedidoBalcao | null>(null);
   const [recusando, setRecusando] = useState<PedidoBalcao | null>(null);
@@ -109,38 +112,86 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
     return { player, contexto };
   }
 
-  async function ativarSom() {
+  const desbloqueando = useRef(false);
+  const bloqueadoNoToque = useRef(false);
+  const precisaDesbloquear = somLigado && !desbloqueado;
+
+  // Roda dentro do gesto (toque, clique ou tecla): libera o AudioContext e "abençoa" o <audio> com um play mudo (iOS).
+  const desbloquear = useEffectEvent(async () => {
+    if (desbloqueando.current) return;
+    desbloqueando.current = true;
     try {
-      setErroSom(false);
+      if (!notificacaoPedida && typeof Notification !== "undefined" && Notification.permission === "default") {
+        setNotificacaoPedida(true);
+        void Notification.requestPermission().catch(() => {});
+      }
       const { player, contexto } = obterAudio();
-      const retomada = contexto.resume();
-      const reproducao = haPendente ? player.play() : Promise.resolve();
-      await Promise.all([retomada, reproducao]);
-      setSomAtivado(true);
+      player.muted = true;
+      const tocou = player.play().then(() => { player.pause(); player.currentTime = 0; }).catch(() => {});
+      // Sem gesto válido o resume() pode nunca resolver: espera no máximo 1s e confere o estado.
+      await Promise.race([contexto.resume(), new Promise((r) => setTimeout(r, 1000))]);
+      await tocou;
+      player.muted = false;
+      if (contexto.state === "running") {
+        setDesbloqueado(true);
+        setAlertaTitulo(false);
+      }
     } catch (erro) {
-      console.error("Falha ao ativar o som de pedidos:", erro);
-      setSomAtivado(false);
-      setErroSom(true);
-      toast.erro("Não foi possível ativar o som. Verifique as permissões de áudio do navegador.");
+      console.error("Falha ao desbloquear o som de pedidos:", erro);
+    } finally {
+      desbloqueando.current = false;
     }
-  }
+  });
+
+  // Primeira interação em qualquer lugar do painel desbloqueia o áudio. Sai assim que desbloquear.
+  useEffect(() => {
+    if (!precisaDesbloquear) return;
+    const eventos = ["pointerdown", "keydown", "touchend"] as const;
+    const aoInteragir = () => void desbloquear();
+    eventos.forEach((e) => document.addEventListener(e, aoInteragir, { capture: true }));
+    // Já houve gesto nesta aba (ex.: veio do login): tenta sem esperar outro.
+    const jaAtivo = navigator.userActivation?.hasBeenActive ? setTimeout(aoInteragir, 0) : undefined;
+    return () => {
+      clearTimeout(jaAtivo);
+      eventos.forEach((e) => document.removeEventListener(e, aoInteragir, { capture: true }));
+    };
+  }, [precisaDesbloquear]);
 
   useEffect(() => {
     const player = audioRef.current;
     if (!player) return;
-    if (!somAtivado || !haPendente) {
+    if (!somLigado || !desbloqueado || !haPendente) {
       player.pause();
       if (Number.isFinite(player.duration)) player.currentTime = 0;
       return;
     }
-    player.play().then(() => {
-      setErroSom(false);
-    }).catch((erro: unknown) => {
+    player.play().catch((erro: unknown) => {
+      // Navegador voltou a bloquear: mostra o aviso de novo, sem mexer na preferência.
       console.error("Falha ao tocar o alerta de pedido:", erro);
-      setSomAtivado(false);
-      setErroSom(true);
+      setDesbloqueado(false);
     });
-  }, [somAtivado, haPendente]);
+  }, [somLigado, desbloqueado, haPendente]);
+
+  // Pedido novo com o som bloqueado: título da aba piscando até o som ser liberado.
+  const piscar = alertaTitulo && precisaDesbloquear;
+  useEffect(() => {
+    if (!piscar) return;
+    const original = document.title;
+    let alterna = false;
+    const t = setInterval(() => {
+      alterna = !alterna;
+      document.title = alterna ? "🔔 Novo pedido!" : original;
+    }, 1000);
+    return () => { clearInterval(t); document.title = original; };
+  }, [piscar]);
+
+  function avisarBloqueado(p: PedidoBalcao) {
+    setAlertaTitulo(true);
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    try {
+      new Notification("🔔 Novo pedido!", { body: `Pedido #${p.numero} · toque no painel para ativar o som`, tag: "novo-pedido" });
+    } catch {} // Android exige service worker para Notification: fica só o título piscando.
+  }
 
   // O banco decide qual painel pode imprimir; o mesmo campo trava as duas comandas.
   async function imprimirSeNinguem(p: PedidoBalcao, aposAceite = false) {
@@ -168,6 +219,7 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
     if (chegou) toast.ok(p.status === "aguardando_aceite"
       ? `Novo pedido #${p.numero} aguardando aceite`
       : `Novo pedido #${p.numero}`);
+    if (chegou && precisaDesbloquear) avisarBloqueado(p);
     if (p.status === "preparo" && p.aceito_em && !p.impresso_em) imprimirSeNinguem(p, true);
     else if (auto && p.status === "novo" && !p.impresso_em) imprimirSeNinguem(p);
   });
@@ -334,6 +386,13 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
   const prontos = pedidos.filter((p) => p.tipo === aba && (p.status === "pronto" || p.status === "saiu"));
 
   return (
+    <>
+    {/* Fora da seção: aparece em qualquer tela do painel enquanto o navegador bloquear o som. */}
+    {precisaDesbloquear && (
+      <p role="alert" className="flex items-center justify-center gap-2 bg-amber-400 px-4 py-3 text-center text-sm font-bold text-amber-950">
+        <Volume2 className="size-5 shrink-0 animate-pulse" /> Toque em qualquer lugar para ativar o som dos pedidos
+      </p>
+    )}
     <section hidden={!visivel} className="flex min-h-full flex-col">
       <header className="flex flex-wrap items-center gap-3 border-b border-neutral-200 bg-white px-4 py-3 lg:px-6 dark:border-neutral-800 dark:bg-neutral-900">
         <div className="mr-auto">
@@ -344,23 +403,21 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
           online ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "animate-pulse bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"}`}>
           {online ? <Wifi className="size-4" /> : <WifiOff className="size-4" />} {online ? "Ao vivo" : "Reconectando…"}
         </span>
-        <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${
-          somAtivado ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"}`}>
-          {somAtivado ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
-          Som {somAtivado ? "ativo" : "inativo"}{somAtivado && haPendente ? " · tocando" : ""}
-        </span>
-        <button type="button" aria-pressed={somAtivado}
+        {/* Um botão só: liga/desliga a preferência. Bloqueado, o toque nele libera o som (não desliga). */}
+        <button type="button" aria-pressed={somLigado}
+          title={!somLigado ? "Ligar o som dos pedidos" : desbloqueado ? "Desligar o som dos pedidos" : "Toque para liberar o som"}
+          onPointerDown={() => { bloqueadoNoToque.current = precisaDesbloquear; }}
+          onKeyDown={() => { bloqueadoNoToque.current = precisaDesbloquear; }}
           onClick={() => {
-            if (somAtivado) {
-              audioRef.current?.pause();
-              setSomAtivado(false);
-            } else {
-              void ativarSom();
-            }
+            if (bloqueadoNoToque.current) bloqueadoNoToque.current = false;
+            else setSomLigado(!somLigado);
           }}
-          className="flex h-10 items-center gap-2 rounded-lg border border-neutral-300 px-3 font-semibold hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800">
-          {somAtivado ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
-          {somAtivado ? "Desativar som" : "Ativar som"}
+          className={`flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold ${!somLigado
+            ? "border border-neutral-300 text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            : desbloqueado ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950 dark:text-emerald-300"
+            : "animate-pulse bg-amber-400 text-amber-950"}`}>
+          {somLigado ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+          {!somLigado ? "Som desligado" : desbloqueado ? `Som ligado${haPendente ? " · tocando" : ""}` : "Som bloqueado"}
         </button>
         <label className="flex cursor-pointer items-center gap-2 rounded-full border border-neutral-300 px-3 py-1 text-sm font-medium dark:border-neutral-700">
           <Printer className="size-4" /> Impressão automática
@@ -376,15 +433,10 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
           className="flex h-10 items-center gap-2 rounded-lg bg-rose-600 px-4 font-semibold text-white hover:bg-rose-700">
           <Plus className="size-5" /> Novo pedido
         </button>
-        {haPendente && !somAtivado && (
+        {haPendente && !somLigado && (
           <span role="alert" className="flex w-full items-center gap-1.5 rounded-lg bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-950">
             <VolumeX className="size-4" />
-            Há {pendentes.length} pedido(s) aguardando confirmação. Ative o som para ouvir o alerta em loop.
-          </span>
-        )}
-        {erroSom && (
-          <span role="alert" className="w-full rounded-lg bg-red-100 px-3 py-1.5 text-sm font-medium text-red-800">
-            O navegador não permitiu tocar o alerta. Confira as permissões de áudio e ative o som novamente.
+            Há {pendentes.length} pedido(s) aguardando confirmação. O som está desligado: ligue para ouvir o alerta em loop.
           </span>
         )}
       </header>
@@ -542,6 +594,7 @@ export function Pedidos({ equipe, visivel }: { equipe: Equipe; visivel: boolean 
           fechar={() => setPagando(null)} salvo={(campos) => { guardar({ ...pagando.p, ...campos }); setPagando(null); }} />
       )}
     </section>
+    </>
   );
 }
 
