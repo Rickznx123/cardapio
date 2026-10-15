@@ -11,13 +11,13 @@ const em = (ms: number) => new Date(agora + ms).toISOString();
 test("trial no prazo: liberada, dias arredondados para cima", () => {
   assert.equal(DIAS_TRIAL, 3);
   assert.deepEqual(situacaoPlano({ ativo: true, plano_status: "trial", trial_ate: em(DIAS_TRIAL * dia) }, agora),
-    { trial: true, liberada: true, diasRestantes: DIAS_TRIAL });
+    { trial: true, liberada: true, diasRestantes: DIAS_TRIAL, emCarencia: false });
   assert.equal(situacaoPlano({ ativo: true, plano_status: "trial", trial_ate: em(2 * 3600_000) }, agora).diasRestantes, 1);
 });
 
 test("trial vencido, plano ativo, desativada pelo super admin", () => {
   assert.deepEqual(situacaoPlano({ ativo: true, plano_status: "trial", trial_ate: em(-1) }, agora),
-    { trial: true, liberada: false, diasRestantes: 0 });
+    { trial: true, liberada: false, diasRestantes: 0, emCarencia: false });
   assert.equal(situacaoPlano({ ativo: true, plano_status: "trial", trial_ate: null }, agora).liberada, false);
   assert.equal(situacaoPlano({ ativo: true, plano_status: "ativo", trial_ate: em(-30 * dia) }, agora).liberada, true);
   assert.equal(situacaoPlano({ ativo: false, plano_status: "ativo", trial_ate: null }, agora).liberada, false);

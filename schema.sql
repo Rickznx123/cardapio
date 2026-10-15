@@ -15,6 +15,7 @@ create type forma_pagamento as enum ('dinheiro', 'pix', 'cartao_credito', 'carta
 create type origem_pedido as enum ('web', 'garcom', 'balcao');
 create type status_caixa   as enum ('aberto', 'fechado');
 create type tipo_movimento as enum ('sangria', 'suprimento');
+create type forma_assinatura as enum ('cartao', 'pix');
 
 -- ---------- TABELAS ----------
 create table empresas (
@@ -49,6 +50,10 @@ create table empresas (
   plano_status     text not null default 'trial'
                    constraint empresas_plano_status check (plano_status in ('trial', 'ativo', 'vencido', 'cancelado')),
   trial_ate        timestamptz default now() + interval '3 days',
+  pago_ate         timestamptz,
+  forma_assinatura forma_assinatura not null default 'cartao',
+  mp_preapproval_id text unique,
+  cortesia         boolean not null default false,
   origem_cadastro  text not null default 'superadmin'
                    constraint empresas_origem_cadastro check (origem_cadastro in ('self', 'superadmin')),
   config_impressao jsonb not null
@@ -137,6 +142,21 @@ create table caixa_movimentos (
   created_at  timestamptz not null default now()
 );
 create index caixa_movimentos_caixa on caixa_movimentos (caixa_id);
+
+create table pagamentos (
+  id             uuid primary key default gen_random_uuid(),
+  empresa_id     uuid not null references empresas(id) on delete cascade,
+  provedor       text not null default 'mercadopago' check (provedor = 'mercadopago'),
+  tipo           forma_assinatura not null,
+  mp_id          text not null unique,
+  status         text not null check (status in ('pendente', 'aprovado', 'recusado', 'cancelado')),
+  valor          numeric(10,2) not null check (valor > 0),
+  periodo_inicio  timestamptz,
+  periodo_fim     timestamptz,
+  raw            jsonb not null default '{}'::jsonb,
+  created_at     timestamptz not null default now()
+);
+create index pagamentos_empresa on pagamentos (empresa_id, created_at desc);
 
 create table comandas (
   id          uuid primary key default gen_random_uuid(),
@@ -233,13 +253,18 @@ as $$
 $$;
 
 -- ---------- PLANO / TRIAL ----------
--- Liberada = não desativada pelo super admin e (plano ativo ou trial no prazo).
+-- Liberada = conta ativa e (cortesia, trial válido, plano ativo ou carência de pagamento em vigor).
 create or replace function public.empresa_liberada(p_empresa uuid)
 returns boolean
 language sql stable security definer set search_path = public
 as $
   select coalesce((
-    select ativo and (plano_status = 'ativo' or (plano_status = 'trial' and trial_ate > now()))
+    select ativo and (
+      cortesia
+      or plano_status = 'ativo'
+      or (plano_status = 'trial' and trial_ate > now())
+      or (pago_ate is not null and pago_ate + interval '3 days' > now())
+    )
     from empresas where id = p_empresa
   ), false);
 $;
@@ -351,9 +376,13 @@ alter table pedidos      enable row level security;
 alter table pedido_itens enable row level security;
 alter table caixas           enable row level security;
 alter table caixa_movimentos enable row level security;
+alter table pagamentos       enable row level security;
 -- Leitura para dono/caixa. Escrita só pelas RPCs abaixo (security definer).
 create policy "caixa le caixas"     on caixas           for select using (e_membro(empresa_id, '{dono,caixa}'));
 create policy "caixa le movimentos" on caixa_movimentos for select using (e_membro(empresa_id, '{dono,caixa}'));
+create policy "dono le pagamentos"  on pagamentos       for select using (
+  exists (select 1 from membros m where m.empresa_id = pagamentos.empresa_id and m.user_id = auth.uid() and m.ativo and m.papel = 'dono')
+);
 
 
 -- Leitura pública do cardápio

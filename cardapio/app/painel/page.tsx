@@ -43,6 +43,7 @@ const MENU: (Item | Grupo)[] = [
     { id: "caixas", nome: "Caixas", Icone: Wallet, papeis: TODOS },
     { id: "relatorios", nome: "Relatórios", Icone: BarChart3, papeis: TODOS },
   ] },
+  { id: "assinatura", nome: "Assinatura", Icone: CreditCard, papeis: DONO },
   { id: "cardapio", nome: "Cardápio", Icone: UtensilsCrossed, papeis: DONO },
   { id: "estoque", nome: "Estoque", Icone: Package, papeis: TODOS },
   { id: "mesas", nome: "Mesas", Icone: Armchair, papeis: DONO },
@@ -208,6 +209,36 @@ export default function Painel() {
             {atual.id === "clientes" && <Clientes empresaId={empresa.id} empresaNome={empresa.nome} />}
             {atual.id === "cupons" && <Cupons empresaId={empresa.id} />}
             {atual.id === "whatsapp" && <WhatsApp empresa={empresa} />}
+            {atual.id === "assinatura" && (
+              <section className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Status da assinatura</p>
+                    <h2 className="text-2xl font-bold">{empresa.cortesia ? "Cortesia ativa" : empresa.plano_status === "ativo" ? "Assinatura ativa" : empresa.plano_status === "trial" ? "Teste grátis" : "Assinatura pendente"}</h2>
+                  </div>
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                    {empresa.forma_assinatura === "pix" ? "Pix" : "Cartão"}
+                  </span>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
+                    <p className="text-xs uppercase tracking-wide text-neutral-500">Próxima cobrança</p>
+                    <p className="mt-2 text-lg font-semibold">{empresa.pago_ate ? new Date(empresa.pago_ate).toLocaleDateString("pt-BR") : "Sem pagamento"}</p>
+                  </div>
+                  <div className="rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
+                    <p className="text-xs uppercase tracking-wide text-neutral-500">Plano</p>
+                    <p className="mt-2 text-lg font-semibold">R$ 149,90/mês</p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button type="button" className="h-11 rounded-lg bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700">Assinar no cartão</button>
+                  <button type="button" className="h-11 rounded-lg border border-neutral-300 bg-white px-4 font-semibold text-neutral-800 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">Pagar 30 dias no Pix</button>
+                </div>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                  O app agora usa checkout do Mercado Pago em ambiente de teste. No banco, a regra de liberação considera cortesia, trial e carência de 3 dias após o último pagamento.
+                </div>
+              </section>
+            )}
             {atual.id === "gerais" && <Gerais {...props} />}
             {atual.id === "pagamentos" && <Pagamentos {...props} />}
             {atual.id === "info" && <InfoNegocio {...props} />}

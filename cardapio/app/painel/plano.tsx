@@ -2,23 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CircleCheck, CircleDashed, MessageCircle, Sparkles } from "lucide-react";
+import { ArrowRight, CircleCheck, CircleDashed, CreditCard, Sparkles } from "lucide-react";
 import { Modal } from "@/components/modal";
 import { temHorarios } from "@/lib/horarios";
-import { linkVendas, PRODUTO, SITE_URL } from "@/lib/marca";
+import { PRODUTO } from "@/lib/marca";
 import { CONFIGURACAO_INCLUSA, INCLUI, PRECO_MENSAL } from "@/lib/planos";
 import { brl } from "@/lib/tipos";
 import type { Empresa } from "./configuracoes";
 import { supabase } from "./ui";
 
-const mensagemAssinar = (e: Empresa) => `Olá! Quero assinar o ${PRODUTO} para a loja ${e.nome} (${SITE_URL}/${e.slug}).`;
-
-function BotaoWhats({ empresa }: { empresa: Empresa }) {
+function BotaoPagamento({ texto, secundario = false }: { texto: string; secundario?: boolean }) {
   return (
-    <a href={linkVendas(mensagemAssinar(empresa))} target="_blank" rel="noopener noreferrer"
-      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 font-semibold text-white hover:bg-emerald-700">
-      <MessageCircle className="size-5" /> Assinar pelo WhatsApp
-    </a>
+    <button type="button" className={`flex h-12 w-full items-center justify-center gap-2 rounded-xl px-5 font-semibold ${secundario ? "border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white" : "bg-emerald-600 text-white hover:bg-emerald-700"}`}>
+      <CreditCard className="size-5" /> {texto}
+    </button>
   );
 }
 
@@ -52,7 +49,13 @@ export function Assinar({ empresa, fechar }: { empresa: Empresa; fechar: () => v
           {INCLUI.map((i) => <li key={i} className="flex gap-2"><CircleCheck className="size-4 shrink-0 text-emerald-600" /> {i}</li>)}
         </ul>
         <p className="rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{CONFIGURACAO_INCLUSA}.</p>
-        <BotaoWhats empresa={empresa} />
+        <div className="space-y-2">
+          <BotaoPagamento texto="Assinar no cartão" />
+          <BotaoPagamento texto="Pagar 30 dias no Pix" secundario />
+          <div className="flex items-center justify-center gap-2 text-xs text-neutral-500">
+            <ArrowRight className="size-3.5" /> Credenciais de teste do Mercado Pago
+          </div>
+        </div>
       </div>
     </Modal>
   );
@@ -68,7 +71,10 @@ export function TesteEncerrado({ empresa, sair }: { empresa: Empresa; sair: () =
           tudo o que você configurou continua salvo.
         </p>
         <Preco />
-        <BotaoWhats empresa={empresa} />
+        <div className="space-y-2">
+          <BotaoPagamento texto="Assinar no cartão" />
+          <BotaoPagamento texto="Pagar 30 dias no Pix" secundario />
+        </div>
         <button onClick={sair} className="text-sm text-neutral-500 underline">Sair</button>
       </div>
     </main>

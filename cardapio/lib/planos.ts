@@ -19,13 +19,19 @@ export const INCLUI = [
 export type PlanoStatus = "trial" | "ativo" | "vencido" | "cancelado";
 
 // Espelha empresa_liberada() do banco (que é quem barra pedidos); aqui é só para a tela.
-export function situacaoPlano(e: { ativo: boolean; plano_status: PlanoStatus; trial_ate: string | null }, agora: number) {
+export function situacaoPlano(
+  e: { ativo: boolean; plano_status: PlanoStatus; trial_ate: string | null; cortesia?: boolean; pago_ate?: string | null },
+  agora: number,
+) {
   const restaMs = e.trial_ate ? Date.parse(e.trial_ate) - agora : 0;
   const trial = e.plano_status === "trial";
+  const pagoAteMs = e.pago_ate ? Date.parse(e.pago_ate) : Number.NaN;
+  const emCarencia = Number.isFinite(pagoAteMs) && pagoAteMs + 3 * 86_400_000 > agora;
   return {
     trial,
-    liberada: e.ativo && (e.plano_status === "ativo" || (trial && restaMs > 0)),
+    liberada: e.ativo && (Boolean(e.cortesia) || e.plano_status === "ativo" || (trial && restaMs > 0) || emCarencia),
     // Arredonda para cima: com 2h restantes ainda é "1 dia".
     diasRestantes: trial ? Math.max(0, Math.ceil(restaMs / 86_400_000)) : null,
+    emCarencia,
   };
 }
