@@ -32,6 +32,15 @@ export function statusPagamento(mp: string | undefined): StatusPagamento {
   return "pendente";
 }
 
+// Resposta de erro da API do MP, com o status HTTP (404 = recurso inexistente).
+export class ErroMP extends Error {
+  status: number;
+  constructor(status: number, mensagem: string) {
+    super(mensagem);
+    this.status = status;
+  }
+}
+
 async function mp<T>(caminho: string, init: { method?: string; body?: object; idempotencia?: string } = {}): Promise<T> {
   const token = process.env.MP_ACCESS_TOKEN;
   if (!token) throw new Error("MP_ACCESS_TOKEN não configurado");
@@ -45,7 +54,7 @@ async function mp<T>(caminho: string, init: { method?: string; body?: object; id
     cache: "no-store",
   });
   const dados = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(`Mercado Pago ${init.method ?? "GET"} ${caminho}: ${r.status} ${JSON.stringify(dados).slice(0, 500)}`);
+  if (!r.ok) throw new ErroMP(r.status, `Mercado Pago ${init.method ?? "GET"} ${caminho}: ${r.status} ${JSON.stringify(dados).slice(0, 500)}`);
   return dados as T;
 }
 
