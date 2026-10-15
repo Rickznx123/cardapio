@@ -18,7 +18,8 @@ export type Empresa = {
   tempo_entrega_min: number | null; tempo_entrega_max: number | null; tempo_retirada: number | null;
   horarios: Horarios | null; config_impressao: ConfigImpressao;
   virada_dia: string; // "05:00:00": fim do dia de trabalho (dia operacional)
-  plano_status: PlanoStatus; trial_ate: string | null; origem_cadastro: "self" | "superadmin";
+  plano_status: PlanoStatus; trial_ate: string | null; pago_ate: string | null; forma_assinatura: "cartao" | "pix" | null;
+  mp_preapproval_id: string | null; cortesia: boolean; origem_cadastro: "self" | "superadmin";
 };
 
 // Configurações ▸ Info do negócio: identidade e contato.

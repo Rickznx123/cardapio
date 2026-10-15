@@ -10,7 +10,8 @@ import { botao, botaoSec, card, input, rotulo } from "../painel/ui";
 
 type Empresa = {
   id: string; nome: string; slug: string; ativo: boolean; created_at: string; pedidos_30d: number; dono_email: string | null;
-  plano_status: PlanoStatus; trial_ate: string | null; origem_cadastro: "self" | "superadmin";
+  plano_status: PlanoStatus; trial_ate: string | null; pago_ate: string | null; forma_assinatura: "cartao" | "pix" | null;
+  cortesia: boolean; origem_cadastro: "self" | "superadmin";
 };
 
 const ROTULO_PLANO: Record<PlanoStatus, string> = { trial: "Teste", ativo: "Assinante", vencido: "Vencido", cancelado: "Cancelado" };
@@ -43,11 +44,13 @@ export default function Superadmin() {
     recarregar();
   }
 
-  async function plano(e: Empresa, acao: "estender_trial" | "marcar_ativo") {
+  async function plano(e: Empresa, acao: "estender_trial" | "marcar_ativo" | "cortesia" | "mais_30_dias") {
     if (acao === "marcar_ativo" && !confirm(`Marcar ${e.nome} como assinante (plano ativo)?`)) return;
+    if (acao === "cortesia" && !confirm(`${e.cortesia ? "Tirar" : "Dar"} cortesia para ${e.nome}?`)) return;
     const { ok, j } = await api("PATCH", { empresa_id: e.id, acao });
     if (!ok) return toast.erro(j.erro ?? "Erro");
-    toast.ok(acao === "marcar_ativo" ? "Plano ativo" : "Teste estendido em 7 dias");
+    toast.ok({ marcar_ativo: "Plano ativo", estender_trial: "Teste estendido em 7 dias",
+      cortesia: e.cortesia ? "Cortesia removida" : "Cortesia ativada", mais_30_dias: "+30 dias pagos" }[acao]);
     recarregar();
   }
 
@@ -69,7 +72,7 @@ export default function Superadmin() {
         <ShieldCheck className="size-7 text-rose-600" />
         <div className="mr-auto">
           <h1 className="text-2xl font-bold">Super admin</h1>
-          <p className="text-sm text-neutral-500">{empresas.length} empresas · {ativas} ativas</p>
+          <p className="text-sm text-neutral-500">{empresas.length} empresas · {ativas} ativas · {empresas.filter((e) => e.cortesia).length} com cortesia</p>
         </div>
         <button onClick={() => setCriando(true)} className={botao}><Plus className="size-5" /> Nova empresa</button>
       </header>
@@ -84,13 +87,20 @@ export default function Superadmin() {
               </p>
             </div>
             <p className="text-sm tabular-nums"><b>{e.pedidos_30d}</b> pedidos em 30 dias</p>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
+              <span>{e.forma_assinatura ? `Assinatura ${e.forma_assinatura}` : "Sem assinatura"}</span>
+              <span>·</span>
+              <span>{e.pago_ate ? `pago até ${new Date(e.pago_ate).toLocaleDateString("pt-BR")}` : "sem pagamento"}</span>
+            </div>
             <Plano e={e} agora={agora} />
-            {e.plano_status !== "ativo" && (
-              <span className="flex gap-1.5">
-                <button onClick={() => plano(e, "estender_trial")} className={botaoSec}>+7 dias</button>
-                <button onClick={() => plano(e, "marcar_ativo")} className={botaoSec}>Marcar ativo</button>
-              </span>
-            )}
+            <span className="flex gap-1.5">
+              <button onClick={() => plano(e, "estender_trial")} className={botaoSec}>+7 dias</button>
+              <button onClick={() => plano(e, "marcar_ativo")} className={botaoSec}>Marcar ativo</button>
+              <button onClick={() => plano(e, "cortesia")} className={botaoSec} aria-pressed={e.cortesia}>
+                {e.cortesia ? "Cortesia on" : "Cortesia off"}
+              </button>
+              <button onClick={() => plano(e, "mais_30_dias")} className={botaoSec}>+30 dias</button>
+            </span>
             <Link href={`/${e.slug}`} target="_blank" aria-label={`Abrir cardápio de ${e.nome}`}
               className="flex size-10 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800">
               <ExternalLink className="size-5" />

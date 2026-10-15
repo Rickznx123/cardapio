@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   return NextResponse.json({ id: empresa.id });
 }
 
-// Ativa/desativa empresa ({ativo}) ou mexe no plano ({acao: "estender_trial" | "marcar_ativo"}).
+// Ativa/desativa empresa ({ativo}) ou mexe no plano ({acao: "estender_trial" | "marcar_ativo" | "cortesia" | "mais_30_dias"}).
 export async function PATCH(request: Request) {
   if (!(await eSuperadmin())) return erro("Sem acesso", 403);
   const { empresa_id, ativo, acao } = await request.json().catch(() => ({}));
@@ -71,6 +71,13 @@ export async function PATCH(request: Request) {
     if (!e) return erro("Empresa não encontrada", 404);
     const base = Math.max(Date.now(), e.trial_ate ? Date.parse(e.trial_ate) : 0);
     campos = { plano_status: "trial", trial_ate: new Date(base + 7 * 86_400_000).toISOString() };
+  } else if (acao === "cortesia" || acao === "mais_30_dias") {
+    const { data: e } = await admin.from("empresas").select("cortesia, pago_ate").eq("id", empresa_id).maybeSingle();
+    if (!e) return erro("Empresa não encontrada", 404);
+    // +30 dias pagos (ex.: pagamento recebido por fora), contando do fim do período atual ou de agora.
+    const base = Math.max(Date.now(), e.pago_ate ? Date.parse(e.pago_ate) : 0);
+    campos = acao === "cortesia" ? { cortesia: !e.cortesia }
+      : { plano_status: "ativo", pago_ate: new Date(base + 30 * 86_400_000).toISOString() };
   } else return erro("Dados inválidos", 400);
   const { error } = await admin.from("empresas").update(campos).eq("id", empresa_id);
   if (error) return erro(error.message, 400);

@@ -10,6 +10,7 @@ import {
 import { Modal } from "@/components/modal";
 import { situacaoPlano } from "@/lib/planos";
 import { lerStatusLoja, textoProximaMudanca, type StatusLoja } from "@/lib/status-loja";
+import { Assinatura } from "./assinatura";
 import { Bairros } from "./bairros";
 import { EditorCardapio } from "./cardapio/editor";
 import { Clientes } from "./clientes";
@@ -43,6 +44,7 @@ const MENU: (Item | Grupo)[] = [
     { id: "caixas", nome: "Caixas", Icone: Wallet, papeis: TODOS },
     { id: "relatorios", nome: "Relatórios", Icone: BarChart3, papeis: TODOS },
   ] },
+  { id: "assinatura", nome: "Assinatura", Icone: CreditCard, papeis: DONO },
   { id: "cardapio", nome: "Cardápio", Icone: UtensilsCrossed, papeis: DONO },
   { id: "estoque", nome: "Estoque", Icone: Package, papeis: TODOS },
   { id: "mesas", nome: "Mesas", Icone: Armchair, papeis: DONO },
@@ -208,6 +210,7 @@ export default function Painel() {
             {atual.id === "clientes" && <Clientes empresaId={empresa.id} empresaNome={empresa.nome} />}
             {atual.id === "cupons" && <Cupons empresaId={empresa.id} />}
             {atual.id === "whatsapp" && <WhatsApp empresa={empresa} />}
+            {atual.id === "assinatura" && <Assinatura empresa={empresa} />}
             {atual.id === "gerais" && <Gerais {...props} />}
             {atual.id === "pagamentos" && <Pagamentos {...props} />}
             {atual.id === "info" && <InfoNegocio {...props} />}

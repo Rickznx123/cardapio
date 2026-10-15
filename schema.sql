@@ -15,6 +15,7 @@ create type forma_pagamento as enum ('dinheiro', 'pix', 'cartao_credito', 'carta
 create type origem_pedido as enum ('web', 'garcom', 'balcao');
 create type status_caixa   as enum ('aberto', 'fechado');
 create type tipo_movimento as enum ('sangria', 'suprimento');
+create type forma_assinatura as enum ('cartao', 'pix');
 
 -- ---------- TABELAS ----------
 create table empresas (
@@ -49,6 +50,10 @@ create table empresas (
   plano_status     text not null default 'trial'
                    constraint empresas_plano_status check (plano_status in ('trial', 'ativo', 'vencido', 'cancelado')),
   trial_ate        timestamptz default now() + interval '3 days',
+  pago_ate         timestamptz,
+  forma_assinatura forma_assinatura,  -- forma do último pagamento aprovado; null até pagar
+  mp_preapproval_id text unique,
+  cortesia         boolean not null default false,
   origem_cadastro  text not null default 'superadmin'
                    constraint empresas_origem_cadastro check (origem_cadastro in ('self', 'superadmin')),
   config_impressao jsonb not null
@@ -137,6 +142,29 @@ create table caixa_movimentos (
   created_at  timestamptz not null default now()
 );
 create index caixa_movimentos_caixa on caixa_movimentos (caixa_id);
+
+create table pagamentos (
+  id             uuid primary key default gen_random_uuid(),
+  empresa_id     uuid not null references empresas(id) on delete cascade,
+  provedor       text not null default 'mercadopago' check (provedor = 'mercadopago'),
+  tipo           forma_assinatura not null,
+  mp_id          text not null unique, -- payment (Pix) ou authorized_payment (cartão)
+  status         text not null check (status in ('pendente', 'aprovado', 'recusado', 'cancelado', 'estornado')),
+  valor          numeric(10,2) not null check (valor > 0),
+  periodo_inicio  timestamptz,
+  periodo_fim     timestamptz,
+  raw            jsonb not null default '{}'::jsonb,
+  created_at     timestamptz not null default now()
+);
+create index pagamentos_empresa on pagamentos (empresa_id, created_at desc);
+
+-- Idempotência dos e-mails de cobrança (lembretes, boas-vindas, recusado).
+create table emails_enviados (
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  chave      text not null,
+  created_at timestamptz not null default now(),
+  primary key (empresa_id, chave)
+);
 
 create table comandas (
   id          uuid primary key default gen_random_uuid(),
@@ -233,16 +261,21 @@ as $$
 $$;
 
 -- ---------- PLANO / TRIAL ----------
--- Liberada = não desativada pelo super admin e (plano ativo ou trial no prazo).
+-- Liberada = conta ativa e (cortesia, trial válido, plano ativo ou carência de pagamento em vigor).
 create or replace function public.empresa_liberada(p_empresa uuid)
 returns boolean
 language sql stable security definer set search_path = public
-as $
+as $$
   select coalesce((
-    select ativo and (plano_status = 'ativo' or (plano_status = 'trial' and trial_ate > now()))
+    select ativo and (
+      cortesia
+      or plano_status = 'ativo'
+      or (plano_status = 'trial' and trial_ate > now())
+      or (pago_ate is not null and pago_ate + interval '3 days' > now())
+    )
     from empresas where id = p_empresa
   ), false);
-$;
+$$;
 grant execute on function public.empresa_liberada(uuid) to anon, authenticated;
 
 -- Calcula o estado atual e a próxima transição usando horários locais de Cuiabá.
@@ -329,12 +362,12 @@ comment on column public.empresas.aberto is 'Legado: não controla funcionamento
 create or replace function public._pedido_empresa_liberada()
 returns trigger
 language plpgsql security definer set search_path = public
-as $
+as $$
 begin
   if not empresa_liberada(new.empresa_id) then raise exception 'Loja indisponível no momento'; end if;
   return new;
 end;
-$;
+$$;
 revoke all on function public._pedido_empresa_liberada() from public, anon, authenticated;
 create trigger pedidos_empresa_liberada before insert on pedidos
   for each row execute function public._pedido_empresa_liberada();
@@ -351,9 +384,12 @@ alter table pedidos      enable row level security;
 alter table pedido_itens enable row level security;
 alter table caixas           enable row level security;
 alter table caixa_movimentos enable row level security;
+alter table pagamentos       enable row level security;
 -- Leitura para dono/caixa. Escrita só pelas RPCs abaixo (security definer).
 create policy "caixa le caixas"     on caixas           for select using (e_membro(empresa_id, '{dono,caixa}'));
 create policy "caixa le movimentos" on caixa_movimentos for select using (e_membro(empresa_id, '{dono,caixa}'));
+create policy "dono le pagamentos"  on pagamentos       for select using (e_membro(empresa_id, '{dono}'));
+alter table emails_enviados  enable row level security; -- sem policy: só service role
 
 
 -- Leitura pública do cardápio
@@ -1099,19 +1135,71 @@ alter table cadastro_tentativas enable row level security;   -- sem policy: só 
 -- Só service role (o Route Handler /api/superadmin valida o e-mail em SUPERADMIN_EMAILS antes de chamar).
 create or replace function public.superadmin_empresas()
 returns table (id uuid, nome text, slug text, ativo boolean, created_at timestamptz, pedidos_30d bigint, dono_email text,
-               plano_status text, trial_ate timestamptz, origem_cadastro text)
+               plano_status text, trial_ate timestamptz, pago_ate timestamptz, forma_assinatura forma_assinatura,
+               cortesia boolean, origem_cadastro text)
 language sql stable security definer set search_path = public
 as $$
   select e.id, e.nome, e.slug, e.ativo, e.created_at,
          (select count(*) from pedidos p where p.empresa_id = e.id and p.created_at >= now() - interval '30 days'),
          (select u.email::text from membros m join auth.users u on u.id = m.user_id
           where m.empresa_id = e.id and m.papel = 'dono' order by m.created_at limit 1),
-         e.plano_status, e.trial_ate, e.origem_cadastro
+         e.plano_status, e.trial_ate, e.pago_ate, e.forma_assinatura, e.cortesia, e.origem_cadastro
   from empresas e
   order by e.created_at desc;
 $$;
 revoke all on function public.superadmin_empresas() from public, anon, authenticated;
 grant execute on function public.superadmin_empresas() to service_role;
+
+-- ---------- ASSINATURA (Mercado Pago) ----------
+-- Grava/atualiza um pagamento do MP. Aprovado (1ª vez): estende pago_ate (Pix: +30 dias; cartão: +1 mês) a partir do
+-- maior entre pago_ate e agora. Estornado depois de aprovado: tira o mesmo período. Aprovado só muda para estornado,
+-- estornado é final. Idempotente por mp_id.
+create or replace function public.registrar_pagamento_mp(
+  p_empresa uuid, p_tipo forma_assinatura, p_mp_id text, p_status text, p_valor numeric, p_raw jsonb
+) returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_antes    text;
+  v_periodo  interval;
+  v_inicio   timestamptz;
+  v_fim      timestamptz;
+  v_primeiro boolean := false;
+begin
+  -- Trava a empresa: dois webhooks simultâneos do mesmo pagamento não estendem duas vezes.
+  select greatest(coalesce(pago_ate, now()), now()) into v_inicio from empresas where id = p_empresa for update;
+  if not found then raise exception 'Empresa não encontrada'; end if;
+  select status, periodo_fim - periodo_inicio into v_antes, v_periodo from pagamentos where mp_id = p_mp_id;
+  if v_antes = p_status or v_antes = 'estornado' or (v_antes = 'aprovado' and p_status <> 'estornado') then
+    return jsonb_build_object('mudou', false, 'primeiro', false);
+  end if;
+
+  if p_status = 'aprovado' then
+    v_primeiro := not exists (select 1 from pagamentos where empresa_id = p_empresa and status = 'aprovado');
+    v_fim := v_inicio + case p_tipo when 'pix' then interval '30 days' else interval '1 month' end;
+    update empresas set pago_ate = v_fim, plano_status = 'ativo', forma_assinatura = p_tipo where id = p_empresa;
+  else
+    v_inicio := null;
+    if p_status = 'estornado' and v_antes = 'aprovado' and v_periodo is not null then
+      -- Já passou da carência com os dias a menos: vence na hora (sem esperar a rotina).
+      update empresas set pago_ate = pago_ate - v_periodo,
+        plano_status = case when plano_status = 'ativo' and not cortesia and pago_ate - v_periodo + interval '3 days' <= now()
+                            then 'vencido' else plano_status end
+      where id = p_empresa;
+    end if;
+  end if;
+
+  insert into pagamentos (empresa_id, tipo, mp_id, status, valor, periodo_inicio, periodo_fim, raw)
+  values (p_empresa, p_tipo, p_mp_id, p_status, p_valor, v_inicio, v_fim, p_raw)
+  on conflict (mp_id) do update set status = excluded.status, valor = excluded.valor, raw = excluded.raw,
+    -- Estorno mantém o período original no histórico.
+    periodo_inicio = coalesce(excluded.periodo_inicio, pagamentos.periodo_inicio),
+    periodo_fim = coalesce(excluded.periodo_fim, pagamentos.periodo_fim);
+  return jsonb_build_object('mudou', true, 'primeiro', v_primeiro);
+end;
+$$;
+revoke all on function public.registrar_pagamento_mp(uuid, forma_assinatura, text, text, numeric, jsonb) from public, anon, authenticated;
+grant execute on function public.registrar_pagamento_mp(uuid, forma_assinatura, text, text, numeric, jsonb) to service_role;
 
 -- ---------- REALTIME (painel do balcão) ----------
 alter publication supabase_realtime add table pedidos;
