@@ -53,6 +53,7 @@ export function FormCadastro({ siteKey }: { siteKey: string | null }) {
       window.turnstile?.reset(); // o token só vale uma vez
       return setErro(j.erro ?? "Não foi possível criar a conta");
     }
+    window.fbq?.("track", "CompleteRegistration");
     router.replace(j.logado ? "/painel/comecar" : "/login");
   }
 

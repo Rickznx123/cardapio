@@ -6,6 +6,7 @@ import {
 import { linkVendas, PRODUTO } from "@/lib/marca";
 import { CONFIGURACAO_INCLUSA, DIAS_TRIAL, INCLUI, PRECO_MENSAL } from "@/lib/planos";
 import { brl } from "@/lib/tipos";
+import { MetaPixel } from "@/components/meta-pixel";
 
 const TITULO = `${PRODUTO}: cardápio digital e pedidos sem taxa por pedido`;
 const DESCRICAO = "Cardápio online, delivery com taxa por bairro, app do garçom, impressão automática e chatbot no WhatsApp. "
@@ -64,7 +65,7 @@ function IconeWhatsApp({ className }: { className?: string }) {
 
 function QueroConfigurar({ className = "" }: { className?: string }) {
   return (
-    <a href={linkVendas(MENSAGEM_CONFIGURAR)} target="_blank" rel="noopener noreferrer" className={`${botaoWhats} ${className}`}>
+    <a href={linkVendas(MENSAGEM_CONFIGURAR)} data-fbq="Lead" target="_blank" rel="noopener noreferrer" className={`${botaoWhats} ${className}`}>
       <IconeWhatsApp className="size-6 shrink-0" /> QUERO CONFIGURAR MEU CARDÁPIO
     </a>
   );
@@ -77,6 +78,7 @@ const comissao = (p: number) => brl(PEDIDOS_MES * TICKET * p);
 export default function Home() {
   return (
     <div className="flex flex-1 flex-col bg-white text-neutral-900">
+      <MetaPixel />
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 p-4">
         <span className="flex items-center gap-2 font-bold text-rose-600">
           <UtensilsCrossed className="size-6" /> {PRODUTO}
@@ -203,7 +205,7 @@ export default function Home() {
         </section>
       </main>
 
-      <a href={linkVendas(MENSAGEM_CONFIGURAR)} target="_blank" rel="noopener noreferrer" aria-label="Falar com a gente no WhatsApp"
+      <a href={linkVendas(MENSAGEM_CONFIGURAR)} data-fbq="Lead" target="_blank" rel="noopener noreferrer" aria-label="Falar com a gente no WhatsApp"
         className="fixed right-4 bottom-4 z-50 flex size-14 items-center justify-center rounded-full bg-emerald-600 text-white shadow-xl shadow-emerald-900/30 hover:bg-emerald-700 sm:right-6 sm:bottom-6">
         <IconeWhatsApp className="size-8" />
       </a>

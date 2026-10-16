@@ -107,11 +107,11 @@ export function PagarAssinatura({ empresa }: { empresa: Empresa }) {
     <div className="space-y-2">
       {!cartaoAtivo(empresa) && (
         <>
-          <button type="button" onClick={cartao} disabled={!!carregando}
+          <button type="button" onClick={cartao} data-fbq="Lead" disabled={!!carregando}
             className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
             <CreditCard className="size-5" /> {carregando === "cartao" ? "Abrindo Mercado Pago…" : "Assinar no cartão"}
           </button>
-          <button type="button" onClick={gerarPix} disabled={!!carregando}
+          <button type="button" onClick={gerarPix} data-fbq="Lead" disabled={!!carregando}
             className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-neutral-300 bg-white px-5 font-semibold text-neutral-800 hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">
             <QrCode className="size-5" /> {carregando === "pix" ? "Gerando Pix…" : "Pagar 30 dias no Pix"}
           </button>
