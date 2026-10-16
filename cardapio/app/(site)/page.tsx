@@ -6,7 +6,6 @@ import {
 import { linkVendas, PRODUTO } from "@/lib/marca";
 import { CONFIGURACAO_INCLUSA, DIAS_TRIAL, INCLUI, PRECO_MENSAL } from "@/lib/planos";
 import { brl } from "@/lib/tipos";
-import { MetaPixel } from "@/components/meta-pixel";
 
 const TITULO = `${PRODUTO}: cardápio digital e pedidos sem taxa por pedido`;
 const DESCRICAO = "Cardápio online, delivery com taxa por bairro, app do garçom, impressão automática e chatbot no WhatsApp. "
@@ -78,7 +77,6 @@ const comissao = (p: number) => brl(PEDIDOS_MES * TICKET * p);
 export default function Home() {
   return (
     <div className="flex flex-1 flex-col bg-white text-neutral-900">
-      <MetaPixel />
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 p-4">
         <span className="flex items-center gap-2 font-bold text-rose-600">
           <UtensilsCrossed className="size-6" /> {PRODUTO}
